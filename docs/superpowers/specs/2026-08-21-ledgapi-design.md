@@ -106,9 +106,8 @@ src/
 │   │   ├── contract_repo_sqlite.rs
 │   │   ├── embedding_repo_sqlite_vec.rs
 │   │   └── token_repo_sqlite.rs
-│   ├── embeddings/
-│   │   ├── embedder.rs            # Embedder trait impl lives in domain/ports.rs
-│   │   └── fastembed_impl.rs      # FastembedEmbedder (spawn_blocking wrapper)
+│   └── embeddings/
+│       └── fastembed_impl.rs      # FastembedEmbedder impls domain::ports::Embedder (spawn_blocking)
 │   └── auth/
 │       ├── token.rs               # generate, sha256-hex
 │       └── middleware.rs          # Bearer enforcement for /mcp only
@@ -142,7 +141,7 @@ src/
 | `core/` | std, serde, uuid, time, thiserror | anything else |
 | `domain/` | `core/`, serde | `infra/`, `mcp/`, `web/`, axum, rusqlite, fastembed |
 | `infra/` | `core/`, `domain/`, rusqlite, fastembed, axum (middleware only) | `mcp/`, `web/`, business rules |
-| `mcp/` | `core/`, `domain/`, `infra/` (via use_cases only, never direct SQL) | direct SQL |
+| `mcp/` | `core/`, `domain/` (and `infra/` only via `domain::ports` traits) | direct SQL, fastembed, axum types |
 | `web/` | `core/`, `domain/`, `infra/`, askama, axum | direct fastembed, direct SQL |
 | `main.rs` / `lib.rs` | everything (composition root) | business logic |
 
@@ -241,21 +240,24 @@ SQLite timestamps are **unix epoch seconds** (integer). JSON columns are stored 
    response_schema parses as JSON)
 2. Resolve project_id from project_slug (404 if missing)
 3. Resolve-or-create group_id from group_name (if provided)
-4. Try INSERT contract + embedding in a transaction
-   ├─ UNIQUE(project_id, method, path) violation →
-   │   rollback, return DuplicateKey warning (no semantic search)
-   └─ success → compute embedding, store, proceed to dup-check
-5. semantic_search(project_id, embedding, K=APP__EMBED__KNN_TOP_K) →
-   list of (contract_id, similarity) sorted desc
+4. Compute embedding for (method, path, summary, description)
+   └─ on Embedder error → return DomainError::EmbeddingUnavailable (503)
+5. semantic_search(project_id, embedding, K=APP__EMBED__KNN_TOP_K)
+   → top-K candidates with similarity in [0,1], EXCLUDING any exact
+     (method, path) match (the candidate wouldn't exist yet, but the
+     branch filters for safety in concurrent insert races)
 6. If max_similarity >= APP__EMBED__SIMILARITY_THRESHOLD (default 0.85)
    AND force != true:
        return { status: "warning_similar_found",
-                similar_contracts: top-K (with similarity),
-                message } — but transaction is already committed.
-   ⚠ Note: in v1 the row is inserted before dup-check. If duplicate is
-   flagged, the caller should delete + recreate, or update the existing
-   match. This is documented in the tool description.
-7. else: return { status: "created", contract_id }
+                similar_contracts: top-K (with similarity, sorted desc),
+                message: "Similar contracts found. Call update_contract on
+                          a match, or resend with force=true to create anyway." }
+       ⚠ No row is inserted.
+7. else: INSERT contract + embedding in a single transaction
+   ├─ UNIQUE(project_id, method, path) violation (rare race with a
+   │   concurrent insert that won the semantic check first) →
+   │   rollback, return DomainError::DuplicateKey { existing_id } (409)
+   └─ success → return { status: "created", contract_id }
 ```
 
 `force=true` skips step 6 but **still returns** the similar_contracts array so the agent has full context.
@@ -270,8 +272,29 @@ SQLite timestamps are **unix epoch seconds** (integer). JSON columns are stored 
 | `semantic` | Branch B only |
 | `hybrid` (default) | A + B → RRF merge |
 
-- **Branch A (exact):** `SELECT id, method, path, summary, status FROM contracts WHERE project_id=? AND (path LIKE '%query%' OR summary LIKE '%query%') ORDER BY (path=? DESC), updated_at DESC LIMIT 50`.
-- **Branch B (semantic):** `SELECT contract_id, distance FROM contract_embeddings WHERE embedding MATCH ? AND k=50 ORDER BY distance`, filtered to project_id (and group_id if provided) by joining `contracts`.
+- **Branch A (exact):**
+  ```sql
+  SELECT id, method, path, summary, status
+    FROM contracts
+   WHERE project_id = ?1
+     AND (path LIKE '%' || ?2 || '%' OR summary LIKE '%' || ?2 || '%')
+     AND (?3 IS NULL OR group_id = ?3)
+   ORDER BY CASE WHEN path = ?2 THEN 0 ELSE 1 END ASC,
+            updated_at DESC
+   LIMIT 50;
+  ```
+- **Branch B (semantic):** embed query, then KNN via sqlite-vec, joined back to `contracts` to filter by `project_id` and `group_id`:
+  ```sql
+  SELECT ce.contract_id, ce.distance
+    FROM contract_embeddings AS ce
+    JOIN contracts      AS c  ON c.id = ce.contract_id
+   WHERE ce.embedding MATCH ?1
+     AND c.project_id = ?2
+     AND (?3 IS NULL OR c.group_id = ?3)
+   ORDER BY ce.distance
+   LIMIT 50;
+  ```
+  Similarity = `1.0 - distance`.
 - **RRF merge:** for each contract_id in union, `score = 1/(60 + rank_a) + 1/(60 + rank_b)` (missing list → term omitted). Sort desc, take top `limit`.
 - Hydrate summaries from `contracts` table.
 
@@ -324,7 +347,7 @@ Each tool is a thin struct (`CreateContractTool`, etc.) implementing `mcp::tools
 | `update_contract` | `update_contract::execute` | Silent overwrite |
 | `delete_contract` | `delete_contract::execute` | |
 | `list_groups` | `manage_group::list` | |
-| `list_contracts` | `create_contract::list` | Optional `group_name`, `status` filter |
+| `list_contracts` | `create_contract::list` | Optional `group_name`, `status` filter; `limit` (default 100, max 500) |
 | `search_contract` | `search_contract::execute` | `mode = exact|semantic|hybrid` |
 | `export_openapi` | `export_openapi::execute` | Returns YAML string + download URL |
 
@@ -372,20 +395,25 @@ Each tool is a thin struct (`CreateContractTool`, etc.) implementing `mcp::tools
 
 ### 6.3 `/setup` lifecycle
 
+State lives in `AppState.setup` (atomic bool + `Instant`):
+
 ```
 First boot:
   - generate 32-byte token → 64 hex chars
   - insert sha256(token_hash) into auth_tokens
-  - log "LEDGAPI_BOOTSTRAP_TOKEN=<token>" to stdout
-  - setup_active = true; setup_expires_at = now + 5min
+  - log "LEDGAPI_BOOTSTRAP_TOKEN=<token>" to stdout (Docker captures this)
+  - setup.active = true; setup.expires_at = Instant::now() + 5min
   - GET /setup renders token + "save this now" instructions
 
 Subsequent boot:
-  - setup_active = false
+  - setup.active = false from the start
   - GET /setup → 410 Gone with explanation
 
-After first valid POST /mcp call: setup_active → false (early clear)
-After 5min without first call: setup_active → false (TTL clear)
+Clear conditions (whichever fires first):
+  - First valid POST /mcp call: setup.active → false
+  - On every GET /setup request, if Instant::now() >= setup.expires_at:
+    setup.active → false, then return 410 Gone (TTL is checked lazily,
+    no background task needed)
 ```
 
 ---
@@ -395,8 +423,9 @@ After 5min without first call: setup_active → false (TTL clear)
 ### 7.1 Token format
 
 - 32 random bytes from `rand::thread_rng()` → 64 lowercase hex chars.
-- Stored as `sha256(token)` hex (never plaintext).
-- DB compare parameterized; header parse is constant-time (substring match).
+- Stored as `sha256(token)` hex (never plaintext in DB or logs).
+- Header parse: `Authorization: Bearer <64-hex>` — `strip_prefix("Bearer ")` then hex-length check.
+- DB-side compare is **constant-time** (`subtle::ConstantTimeEq` or equivalent) against the stored hash; SQL query is parameterized.
 
 ### 7.2 Env vars (loaded via `config` crate, prefix `APP__`)
 
@@ -531,10 +560,10 @@ Live tests are opt-in: `cargo test -- --ignored`.
 
 ## 12. Open follow-ups (not blockers)
 
-- **Migration from created-before-dup-check:** see §4.3 — the row is inserted before dup-check runs, so on a `SimilarFound` warning the caller has to delete + recreate. Acceptable for v1; could be tightened later by reordering the flow (compute embedding → check → insert in one tx).
 - **OpenAPI export viewer:** a tiny YAML pretty-printer in the web UI is a nice-to-have, not in v1.
 - **Metrics endpoint:** tracing-only in v1. `metrics-exporter-prometheus` is already a workspace dep option; add when there's a need.
 - **Token rotation:** v2 per PRD §10. Manual workaround is to drop the row from `auth_tokens` (or wipe the volume).
+- **`list_contracts` pagination:** v1 caps at `limit=500`; offset-based pagination can come in v2 if needed.
 
 ---
 
