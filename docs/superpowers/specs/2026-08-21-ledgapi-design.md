@@ -567,7 +567,36 @@ Live tests are opt-in: `cargo test -- --ignored`.
 
 ---
 
-## 13. Out of scope (v1)
+## 13. Implementation defaults (locked during self-review)
+
+These are decisions that the spec leaves implicit. Locked here so the implementation plan can reference them without re-asking.
+
+| # | Topic | Decision | Rationale |
+|---|---|---|---|
+| 1 | DB connection | **`Arc<Mutex<rusqlite::Connection>>`** (no pool) | SQLite WAL already serializes writes. A pool adds no concurrency benefit at our scale and complicates the code. Each request acquires the mutex briefly. |
+| 2 | MCP body size limit | **4 MiB** (`axum::extract::DefaultBodyLimit::max(4 * 1024 * 1024)`) | API contracts with large JSON schemas can run ~100 KiB – 1 MiB. 4 MiB gives headroom without DoS risk. |
+| 3 | `update_contract` embedding | **Regenerate on every update** that touches `method`, `path`, `summary`, or `description` | Otherwise semantic search returns stale matches after a meaningful edit. One extra embed call is cheap. |
+| 4 | Concurrent insert DuplicateKey payload | **Return `"DuplicateKey"` with the conflicting `(method, path)` only — do not expose `existing_id`** | Agent calls `list_contracts` or `search_contract` to discover the existing contract. Smaller error surface. |
+| 5 | Empty `query` in `search_contract` | **Reject with `Validation { field: "query", message: "must be non-empty" }`** | Empty query is meaningless; fail fast. |
+| 6 | Path normalization | **Trim trailing slash except for root `/`. Case-sensitive. No other normalization.** | REST convention; predictable. |
+| 7 | OpenAPI version | **3.0.3** (not 3.1) | Wider tool compatibility; most client generators default to 3.0. Migration to 3.1 is a v2 concern. |
+| 8 | Group name comparison | **Case-sensitive** (e.g., `Auth` ≠ `auth`) | Predictable. Agents normalize client-side if they want. |
+| 9 | `APP__DATABASE__PATH` parent dir | **Auto-create on boot if missing** (with `app:app` ownership in Docker) | Smoother Docker volume-mount experience. |
+| 10 | OpenAPI `info` fields | **Per-project.** `title=project.name`, `description=project.description`, `version="1.0.0"` | No project versioning in v1; a single static version is honest. |
+| 11 | OpenAPI auth mapping | **Map `auth_type` to OpenAPI securitySchemes:** `none` → no security; `bearer` → `bearerAuth` (`type: http, scheme: bearer`); `api_key` → `apiKeyAuth` (`in: header, name: X-API-Key`); `basic` → `basicAuth` (`type: http, scheme: basic`). Unknown → treated as none. | Documented static map. |
+| 12 | OpenAPI parameter location inference | **`{name}` patterns in `path` ⇒ path param. Everything in `request_params` JSON Schema ⇒ query param. Body ⇒ from `request_body_schema`. Headers ⇒ from `request_headers`.** If `request_params` items include an explicit `"in"` field, that overrides. | Heuristic that matches 95% of REST APIs without forcing agents to author OpenAPI-specific metadata. |
+| 13 | Dashboard sort order | **`projects.created_at DESC`** | Most recent first; matches the "what did I just create?" workflow. |
+| 14 | JSON-RPC notification response status | **`204 No Content` with empty body** | HTTP-idiomatic; per JSON-RPC spec notifications get no JSON-RPC response. |
+| 15 | Embedding cache (repeated text) | **None in v1.** fastembed-rs re-encodes each call. | Avoids cache-key complexity for negligible savings at our scale. |
+| 16 | Tag filtering | **Not exposed in v1** (tags stored on contracts but no `tag` filter on `list_contracts` or `search_contract`). | Out of PRD §6.7/6.2; deferred to v2. |
+| 17 | `/setup` page parent dir auto-create | **Auto-create `/data` on boot** (entrypoint.sh handles Docker; the binary creates `APP__DATABASE__PATH`'s parent dir). | Matches #9. |
+| 18 | Malformed JSON in MCP request body | **Return JSON-RPC `-32700` (Parse error)** with no body. | Standard JSON-RPC behavior. |
+| 19 | Malformed UUID in path | **Return HTTP 404 with 404.html.** | Treat as "doesn't exist" rather than a 400 — keeps URL enumeration behavior consistent. |
+| 20 | `export_openapi` per-contract `tags` | **Promoted to OpenAPI `tags: [...]` on the operation**, not the top-level `tags:`. | Lets SDK generators group operations correctly. |
+
+---
+
+## 14. Out of scope (v1)
 
 - Auditing / version history
 - OAuth / multi-user
