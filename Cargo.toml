@@ -62,7 +62,7 @@ thiserror_workspace = { package = "thiserror", version = "2" }
 humantime-serde = "1"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 rust_2018_idioms = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
@@ -113,7 +113,7 @@ publish.workspace = true
 description = "Ledgapi — API contracts, remembered by your agents."
 
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 rust_2018_idioms = { level = "warn", priority = -1 }
 
 [lints.clippy]

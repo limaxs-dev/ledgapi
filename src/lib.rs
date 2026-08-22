@@ -8,6 +8,7 @@ pub mod config;
 pub mod core;
 pub mod domain;
 pub mod errors;
+pub mod infra;
 pub mod telemetry;
 
 /// Library entry point used by both the binary and integration tests.
