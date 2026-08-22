@@ -4,5 +4,6 @@
 //! dep: `serde`, `time`, `uuid`, `thiserror`.
 
 pub mod clock;
+pub mod envelope;
 pub mod id;
 pub mod observability;
