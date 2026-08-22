@@ -1,2 +1,21 @@
 {% extends "base.html" %}
-{% block content %}<h1>Contract</h1>{% endblock %}
+{% block title %}{{ method }} {{ path }} · ledgapi{% endblock %}
+{% block content %}
+<h1><span class="method-badge method-{{ method }}">{{ method }}</span> <code>{{ path }}</code></h1>
+<p>{{ summary }} · <span class="status-badge status-{{ status }}">{{ status }}</span></p>
+{% if let Some(d) = description %}<p>{{ d }}</p>{% endif %}
+
+<dl>
+    {% if let Some(a) = auth_type %}<dt>Auth</dt><dd>{{ a }}</dd>{% endif %}
+    {% if !tags.is_empty() %}<dt>Tags</dt><dd>{{ tags|join(", ") }}</dd>{% endif %}
+    <dt>Created</dt><dd>{{ created_at }}</dd>
+    <dt>Updated</dt><dd>{{ updated_at }}</dd>
+</dl>
+
+{% if let Some(s) = request_headers %}<h2>Request headers</h2><pre>{{ s }}</pre>{% endif %}
+{% if let Some(s) = request_params %}<h2>Request params</h2><pre>{{ s }}</pre>{% endif %}
+{% if let Some(s) = request_body_schema %}<h2>Request body schema</h2><pre>{{ s }}</pre>{% endif %}
+{% if let Some(s) = request_example %}<h2>Request example</h2><pre>{{ s }}</pre>{% endif %}
+<h2>Response schema</h2><pre>{{ response_schema }}</pre>
+{% if let Some(s) = response_example %}<h2>Response example</h2><pre>{{ s }}</pre>{% endif %}
+{% endblock %}

@@ -1,2 +1,29 @@
 {% extends "base.html" %}
-{% block content %}<h1>Search</h1>{% endblock %}
+{% block title %}Search · {{ slug }} · ledgapi{% endblock %}
+{% block content %}
+<h1>Search <code>{{ slug }}</code></h1>
+
+<form class="search-form" method="get" action="/projects/{{ slug }}/search">
+    <input type="text" name="q" value="{{ query }}" required>
+    <select name="mode">
+        {% if mode == "exact" %}<option value="exact" selected>exact</option>{% else %}<option value="exact">exact</option>{% endif %}
+        {% if mode == "semantic" %}<option value="semantic" selected>semantic</option>{% else %}<option value="semantic">semantic</option>{% endif %}
+        {% if mode == "hybrid" %}<option value="hybrid" selected>hybrid</option>{% else %}<option value="hybrid">hybrid</option>{% endif %}
+    </select>
+    <button type="submit">Search</button>
+</form>
+
+{% if results.is_empty() %}
+    <p class="muted">No results.</p>
+{% else %}
+{% for r in results %}
+<div class="card">
+    <span class="method-badge method-{{ r.method }}">{{ r.method }}</span>
+    <a class="path" href="/projects/{{ slug }}/contracts/{{ r.id }}"><code>{{ r.path }}</code></a>
+    <span class="summary">{{ r.summary }}</span>
+    {% if let Some(s) = r.similarity %}<small class="muted">similarity {{ s }}</small>{% endif %}
+    <span class="status-badge status-{{ r.status }}">{{ r.status }}</span>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

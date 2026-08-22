@@ -66,8 +66,8 @@ pub struct ContractRow {
 /// Contract detail page.
 #[derive(Template, Serialize)]
 #[template(path = "contract.html")]
-pub struct ContractTpl<'a> {
-    pub title: &'a str,
+pub struct ContractTpl {
+    pub title: String,
     pub id: String,
     pub method: String,
     pub path: String,

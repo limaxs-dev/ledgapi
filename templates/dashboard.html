@@ -1,2 +1,21 @@
 {% extends "base.html" %}
-{% block content %}<h1>Projects</h1>{% endblock %}
+{% block title %}Projects · ledgapi{% endblock %}
+{% block content %}
+<h1>Projects</h1>
+{% if projects.is_empty() %}
+    <p>No projects yet. Create one with the <code>create_project</code> MCP tool.</p>
+{% else %}
+<table>
+    <thead><tr><th>Slug</th><th>Name</th><th class="num">Contracts</th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+        <tr>
+            <td><a href="/projects/{{ p.slug }}">{{ p.slug }}</a></td>
+            <td>{{ p.name }}</td>
+            <td class="num">{{ p.contract_count }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}
