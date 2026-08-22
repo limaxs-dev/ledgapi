@@ -100,4 +100,48 @@ impl AppState {
     pub fn bootstrap_token_plaintext(&self) -> Option<&str> {
         self.setup_state.plaintext.as_deref()
     }
+
+    /// Build an [`AppState`] wired to a fresh in-memory database and a
+    /// [`StubEmbedder`](crate::infra::embeddings::fastembed_impl::StubEmbedder).
+    /// Used exclusively by integration tests under `src/web/`. Production
+    /// construction happens in `bootstrap::run` (Task 40).
+    #[must_use]
+    pub fn for_tests() -> Self {
+        use crate::infra::db::pool::open_memory;
+        use crate::infra::embeddings::fastembed_impl::StubEmbedder;
+
+        let cfg = Arc::new(crate::config::AppConfig {
+            server: crate::config::ServerConfig {
+                bind: "127.0.0.1:0".to_owned(),
+                shutdown_timeout: std::time::Duration::from_secs(30),
+            },
+            database: crate::config::DatabaseConfig {
+                path: ":memory:".to_owned(),
+                busy_timeout_ms: 5000,
+            },
+            embed: crate::config::EmbedConfig {
+                cache_dir: String::new(),
+                model: String::new(),
+                similarity_threshold: 0.85,
+                knn_top_k: 5,
+                hybrid_limit: 10,
+            },
+            log: crate::config::LogConfig {
+                format: crate::config::LogFormat::Pretty,
+                level: "info".to_owned(),
+            },
+        });
+        Self {
+            repos: Arc::new(SqliteRepos::new(open_memory().expect("open in-memory db"))),
+            mcp: Arc::new(McpRegistry::new()),
+            cfg,
+            embedder: Arc::new(StubEmbedder::new()),
+            setup_active: Arc::new(AtomicBool::new(false)),
+            setup_state: Arc::new(SetupState {
+                active: false,
+                expires_at: Instant::now(),
+                plaintext: None,
+            }),
+        }
+    }
 }

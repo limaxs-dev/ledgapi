@@ -40,9 +40,8 @@ pub async fn project(State(state): State<AppState>, Path(slug): Path<String>) ->
     let Ok(slug) = ProjectSlug::parse(&slug) else {
         return not_found().await;
     };
-    let project = match state.repos().projects().find_by_slug(&slug).await {
-        Ok(Some(p)) => p,
-        Ok(None) | Err(_) => return not_found().await,
+    let Some(project) = state.repos().projects().find_by_slug(&slug).await.ok().flatten() else {
+        return not_found().await;
     };
 
     let contracts = crate::domain::use_cases::create_contract::list(
@@ -97,14 +96,12 @@ pub async fn contract(
     let Ok(slug) = ProjectSlug::parse(&slug) else {
         return not_found().await;
     };
-    let id = match Id::parse(&id) {
-        Some(i) => i,
-        None => return not_found().await,
+    let Some(id) = Id::parse(&id) else {
+        return not_found().await;
     };
 
-    let c = match crate::domain::use_cases::create_contract::get(state.repos(), slug, id).await {
-        Ok(c) => c,
-        Err(_) => return not_found().await,
+    let Ok(c) = crate::domain::use_cases::create_contract::get(state.repos(), slug, id).await else {
+        return not_found().await;
     };
 
     let tpl = ContractTpl {
@@ -150,9 +147,8 @@ pub async fn search(
     let Ok(slug_parsed) = ProjectSlug::parse(&slug) else {
         return not_found().await;
     };
-    let mode = match crate::domain::ports::SearchMode::parse(&q.mode) {
-        Ok(m) => m,
-        Err(_) => return not_found().await,
+    let Ok(mode) = crate::domain::ports::SearchMode::parse(&q.mode) else {
+        return not_found().await;
     };
     let results = crate::domain::use_cases::search_contract::execute(
         state.repos(),

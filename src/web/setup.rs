@@ -26,7 +26,7 @@ pub async fn show(State(state): State<AppState>) -> Response {
     let token = state.bootstrap_token_plaintext().unwrap_or_default();
     let tpl = SetupTpl {
         title: "Setup · ledgapi",
-        token: &token,
+        token,
     };
     (StatusCode::OK, tpl.render().unwrap_or_default()).into_response()
 }
