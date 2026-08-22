@@ -5,6 +5,7 @@
 
 pub mod bootstrap;
 pub mod core;
+pub mod domain;
 
 /// Library entry point used by both the binary and integration tests.
 ///
