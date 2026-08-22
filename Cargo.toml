@@ -59,6 +59,7 @@ parking_lot = "0.12"
 once_cell = { version = "1", features = ["parking_lot"] }
 anyhow = "1"
 thiserror_workspace = { package = "thiserror", version = "2" }
+humantime-serde = "1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -171,6 +172,7 @@ tracing-subscriber = { workspace = true }
 async-trait = { workspace = true }
 parking_lot = { workspace = true }
 anyhow = { workspace = true }
+humantime-serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
