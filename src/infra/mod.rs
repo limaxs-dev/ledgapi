@@ -5,3 +5,4 @@
 //! `axum` (for middleware). It must NOT import `mcp` or `web`.
 
 pub mod db;
+pub mod repos;
