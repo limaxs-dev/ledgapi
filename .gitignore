@@ -24,3 +24,28 @@ build/
 .vscode/
 .idea/
 *.swp
+
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Local data
+/data
+/.data
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Editor
+.idea/
+.vscode/
+
+# Test outputs
+/coverage
+/tests/snapshots/*-actual.*

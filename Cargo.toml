@@ -1,0 +1,178 @@
+[workspace]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/limaxs-dev/ledgapi"
+publish = false
+
+[workspace.dependencies]
+# Core
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+time = { version = "0.3", features = ["serde", "macros", "formatting"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+
+# Async + transport
+tokio = { version = "1.53", default-features = false, features = ["rt-multi-thread", "net", "signal", "sync", "time", "macros", "fs"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "tracing"] }
+tower = { version = "0.5", default-features = false, features = ["util", "make"] }
+tower-http = { version = "0.7", default-features = false, features = ["trace", "request-id", "timeout", "catch-panic"] }
+hyper = "1"
+http = "1"
+
+# Storage
+rusqlite = { version = "0.32", features = ["bundled", "uuid"] }
+sqlite-vec = "0.1"          # verify exact version at implementation time; cargo adds may need adjustment
+
+# Embedding
+fastembed = { version = "5", default-features = false, features = ["ort-download-binaries-rustls-tls"] }
+
+# MCP + schema
+schemars = { version = "0.8", features = ["derive", "uuid1"] }
+
+# Web
+askama = { version = "0.12", features = ["with-axum"] }
+
+# Auth / crypto
+sha2 = "0.10"
+hex = "0.4"
+subtle = "2"
+rand = "0.8"
+
+# Config
+config = { version = "0.15", default-features = false, features = ["toml"] }
+dotenvy = "0.15"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "json", "fmt", "registry"] }
+
+# Misc
+async-trait = "0.1"
+parking_lot = "0.12"
+once_cell = { version = "1", features = ["parking_lot"] }
+anyhow = "1"
+thiserror_workspace = { package = "thiserror", version = "2" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+default_trait_access = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+doc_markdown = "allow"
+manual_div_ceil = "allow"
+collapsible_if = "allow"
+assigning_clones = "allow"
+map_unwrap_or = "allow"
+type_complexity = "allow"
+cast_possible_wrap = "allow"
+needless_pass_by_value = "allow"
+unused_async = "allow"
+field_reassign_with_default = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+incremental = false
+
+[profile.dev]
+debug = "line-tables-only"
+incremental = true
+
+[profile.test]
+debug = true
+incremental = true
+
+[package]
+name = "ledgapi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Ledgapi — API contracts, remembered by your agents."
+
+[lints.rust]
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+default_trait_access = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+doc_markdown = "allow"
+manual_div_ceil = "allow"
+collapsible_if = "allow"
+assigning_clones = "allow"
+map_unwrap_or = "allow"
+type_complexity = "allow"
+cast_possible_wrap = "allow"
+needless_pass_by_value = "allow"
+unused_async = "allow"
+field_reassign_with_default = "allow"
+
+[[bin]]
+name = "ledgapi"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+http = { workspace = true }
+rusqlite = { workspace = true }
+sqlite-vec = { workspace = true }
+fastembed = { workspace = true }
+schemars = { workspace = true }
+askama = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+subtle = { workspace = true }
+rand = { workspace = true }
+config = { workspace = true }
+dotenvy = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+async-trait = { workspace = true }
+parking_lot = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+http-body-util = "0.1"
