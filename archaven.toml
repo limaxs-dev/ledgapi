@@ -1,0 +1,76 @@
+# archaven v1 rules for ledgapi (single-crate).
+# `cargo install archaven` to enforce; CI installs it.
+
+[core]
+forbid_imports = [
+    "axum",
+    "hyper",
+    "tower",
+    "tower-http",
+    "rusqlite",
+    "sqlite-vec",
+    "fastembed",
+    "schemars",
+    "askama",
+    "askama_axum",
+    "tracing",
+    "tracing-subscriber",
+    "config",
+    "anyhow",
+    "tokio",
+    "tokio_util",
+    "axum_extra",
+    "subtle",
+    "rand",
+    "sha2",
+    "humantime-serde",
+    "parking_lot",
+    "dotenvy",
+]
+
+[domain]
+# Domain may use core, serde, schemars. Nothing else.
+forbid_imports = [
+    "axum", "hyper", "tower", "tower-http",
+    "rusqlite", "sqlite-vec",
+    "fastembed",
+    "askama", "askama_axum",
+    "tracing", "tracing-subscriber",
+    "config", "anyhow",
+    "tokio", "tokio_util",
+    "axum_extra",
+    "subtle", "rand", "sha2", "hex",
+    "parking_lot", "dotenvy",
+]
+
+[infra]
+# Infra may use core, domain, plus its own deps. No business rules, no mcp/web.
+forbid_imports = [
+    "askama", "askama_axum",
+    "tracing-subscriber",
+    "config", "anyhow",
+    "axum_extra",
+]
+
+[mcp]
+# mcp may use core, domain, infra (via ports only).
+forbid_imports = [
+    "rusqlite", "sqlite-vec",
+    "fastembed",
+    "askama", "askama_axum",
+    "tracing-subscriber",
+    "config", "anyhow",
+    "axum_extra",
+    "subtle", "rand", "sha2",
+    "parking_lot", "dotenvy",
+]
+
+[web]
+# web may use core, domain, infra, askama, axum. No direct fastembed, no direct SQL.
+forbid_imports = [
+    "fastembed",
+    "tracing-subscriber",
+    "config", "anyhow",
+    "subtle", "rand", "sha2",
+    "axum_extra",
+]
