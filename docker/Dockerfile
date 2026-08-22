@@ -14,6 +14,7 @@ RUN mkdir -p src && echo "fn main() {}" > src/main.rs \
  && cargo build --release --locked || true
 
 # Real source.
+COPY README.md ./
 COPY src ./src
 RUN touch src/main.rs && cargo build --release --locked --bin ledgapi \
  && strip target/release/ledgapi
