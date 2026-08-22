@@ -281,8 +281,10 @@ impl ContractRepo for SqliteContractRepo {
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
                 let mut sql = String::from(
-                    "SELECT id, method, path, summary, status, tags
-                     FROM contracts WHERE project_id = ?1",
+                    "SELECT c.id, c.method, c.path, c.summary, c.status, c.tags, g.name
+                     FROM contracts c
+                     LEFT JOIN groups g ON g.id = c.group_id
+                     WHERE c.project_id = ?1",
                 );
                 if filter.group_id.is_some() {
                     sql.push_str(" AND group_id = ?2");
@@ -370,6 +372,7 @@ impl ContractRepo for SqliteContractRepo {
                                     .map_err(|_| rusqlite::Error::InvalidQuery)?,
                                 tags: parse_tags(tags)
                                     .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                group_name: None,
                                 similarity: None,
                             })
                         },
@@ -457,6 +460,7 @@ fn row_to_summary(r: &rusqlite::Row<'_>) -> rusqlite::Result<ContractSummary> {
     let summary: String = r.get(3)?;
     let status: String = r.get(4)?;
     let tags: String = r.get(5)?;
+    let group_name: Option<String> = r.get(6)?;
     Ok(ContractSummary {
         id: Id::parse(&id).ok_or(rusqlite::Error::InvalidQuery)?,
         method: Method::parse(&method).ok_or(rusqlite::Error::InvalidQuery)?,
@@ -464,6 +468,7 @@ fn row_to_summary(r: &rusqlite::Row<'_>) -> rusqlite::Result<ContractSummary> {
         summary,
         status: Status::parse(&status).ok_or(rusqlite::Error::InvalidQuery)?,
         tags: serde_json::from_str(&tags).unwrap_or_default(),
+        group_name,
         similarity: None,
     })
 }

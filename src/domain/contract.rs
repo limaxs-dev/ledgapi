@@ -177,6 +177,11 @@ pub struct ContractSummary {
     pub summary: String,
     pub status: Status,
     pub tags: Vec<String>,
+    /// Group name (only populated for list/search results; None for
+    /// search hits coming from the semantic branch that haven't been
+    /// hydrated yet). UI-001 regression.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub similarity: Option<f32>,
 }

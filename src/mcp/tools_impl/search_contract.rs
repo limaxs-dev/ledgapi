@@ -83,6 +83,7 @@ impl Tool for SearchContractTool {
                     "summary": r.summary,
                     "status": r.status.as_str(),
                     "tags": r.tags,
+                    "group": r.group_name,
                     "similarity": r.similarity,
                 })
             })

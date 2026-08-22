@@ -65,7 +65,30 @@ pub async fn execute(
         vec![]
     };
 
-    Ok(rrf_merge(exact, semantic, limit))
+    let mut results = rrf_merge(exact, semantic, limit);
+
+    // Hydrate any semantic-only results: rrf_merge inserts placeholders
+    // with `path: ""` for ids that didn't appear in the exact branch.
+    // A find_by_id lookup fills in the real fields. (UI-002 regression.)
+    let project_id = project.id;
+    let needs_hydration: Vec<Id> = results
+        .iter()
+        .filter(|r| r.path.is_empty() && r.summary.is_empty())
+        .map(|r| r.id)
+        .collect();
+    for cid in needs_hydration {
+        if let Ok(c) = repos.contracts().find_by_id(project_id, cid).await {
+            if let Some(slot) = results.iter_mut().find(|r| r.id == cid) {
+                slot.method = c.method;
+                slot.path = c.path;
+                slot.summary = c.summary;
+                slot.status = c.status;
+                slot.tags = c.tags;
+            }
+        }
+    }
+
+    Ok(results)
 }
 
 fn rrf_merge(exact: Vec<SearchResult>, semantic: Vec<(Id, f32)>, limit: i64) -> Vec<SearchResult> {
@@ -94,6 +117,7 @@ fn rrf_merge(exact: Vec<SearchResult>, semantic: Vec<(Id, f32)>, limit: i64) -> 
             summary: String::new(),
             status: crate::domain::contract::Status::Draft,
             tags: vec![],
+            group_name: None,
             similarity: Some(*sim),
         });
     }
@@ -126,6 +150,7 @@ mod tests {
                 summary: String::new(),
                 status: Status::Draft,
                 tags: vec![],
+                group_name: None,
                 similarity: None,
             },
             SearchResult {
@@ -135,6 +160,7 @@ mod tests {
                 summary: String::new(),
                 status: Status::Draft,
                 tags: vec![],
+                group_name: None,
                 similarity: None,
             },
         ];
@@ -156,6 +182,7 @@ mod tests {
                 summary: String::new(),
                 status: Status::Draft,
                 tags: vec![],
+                group_name: None,
                 similarity: None,
             })
             .collect();

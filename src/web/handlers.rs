@@ -60,7 +60,7 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
             path: c.path,
             summary: c.summary,
             status: c.status.as_str().to_owned(),
-            group: String::new(),
+            group: c.group_name.unwrap_or_default(),
         })
         .collect();
     let group_rows: Vec<GroupRow> = groups

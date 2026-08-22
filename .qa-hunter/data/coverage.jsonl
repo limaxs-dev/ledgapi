@@ -1,0 +1,3 @@
+{"segment": "security", "status": "explored", "iteration": 1, "summary": "11 traces (SQL injection, bearer auth, /setup race, path normalization, project slug, MCP dispatcher, body size, OpenAPI export, dup-key race, token storage, error leaks). 2 findings: BUG-001 medium (path validation gap in update) and OBS-002 low (plaintext retained in memory)."}
+{"segment": "edge_cases", "status": "explored", "iteration": 1, "summary": "11 findings: API-001 high (update detaches group), API-002/API-003 medium (list/search create groups on read), API-005 medium (update skips validate), API-004/API-006/API-007/API-008/API-009/API-010 low + API-011 info."}
+{"segment": "api", "status": "explored", "iteration": 1, "summary": "Same as edge_cases — API tool surface thoroughly covered."}

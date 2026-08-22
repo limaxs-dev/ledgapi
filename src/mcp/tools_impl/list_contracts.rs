@@ -87,6 +87,7 @@ impl Tool for ListContractsTool {
                     "summary": c.summary,
                     "status": c.status.as_str(),
                     "tags": c.tags,
+                    "group": c.group_name,
                 })
             })
             .collect();

@@ -66,6 +66,9 @@ code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 3px; }
 .method-PATCH  { background: var(--patch); }
 .method-DELETE { background: var(--delete); }
 
+.muted { color: var(--muted); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
 .status-badge {
     font-size: 0.75rem;
     padding: 0.15rem 0.5rem;

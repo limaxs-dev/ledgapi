@@ -44,6 +44,9 @@ pub struct SearchResult {
     pub summary: String,
     pub status: Status,
     pub tags: Vec<String>,
+    /// Group name (populated by `search_contract::execute` after the
+    /// post-hydration step; None until the use case runs `find_by_id`).
+    pub group_name: Option<String>,
     /// Cosine similarity in `[0.0, 1.0]`. `None` for exact-only hits.
     pub similarity: Option<f32>,
 }
