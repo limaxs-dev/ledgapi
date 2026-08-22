@@ -133,6 +133,30 @@ async fn hydrate_similar(
 #[allow(dead_code)]
 fn _search_marker(_: SearchMode, _: SearchResult) {}
 
+/// Helper for sibling use-case tests: build a baseline [`ContractCreate`]
+/// for the `/api/users` GET endpoint.
+#[allow(dead_code, non_snake_case)]
+pub fn ContractCreate_for_tests() -> crate::domain::contract::ContractCreate {
+    use crate::domain::contract::{ContractCreate, Method};
+    ContractCreate {
+        method: Method::Get,
+        path: "/api/users".to_owned(),
+        summary: "List users".to_owned(),
+        description: None,
+        request_headers: None,
+        request_params: None,
+        request_body_schema: None,
+        request_example: None,
+        response_schema: serde_json::json!({"type": "object"}),
+        response_example: None,
+        auth_type: None,
+        status: None,
+        tags: None,
+        group_name: None,
+        force: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
