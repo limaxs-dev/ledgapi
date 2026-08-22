@@ -14,9 +14,7 @@ pub async fn live() -> Response {
 /// `GET /readyz` — 200 if the DB is reachable, else 503.
 pub async fn ready(Extension(state): Extension<AppState>) -> Response {
     let db_ok = state.sqlite_repos().db.with_conn(|c| {
-        c.query_row::<i64, _, _>("SELECT 1", [], |r| r.get(0))
-            .map(|_| true)
-            .unwrap_or(false)
+        c.query_row::<i64, _, _>("SELECT 1", [], |r| r.get(0)).map(|_| true).unwrap_or(false)
     });
     if !db_ok {
         return (StatusCode::SERVICE_UNAVAILABLE, "db unavailable").into_response();

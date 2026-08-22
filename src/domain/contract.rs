@@ -139,11 +139,7 @@ pub fn normalize_path(s: &str) -> String {
     let s = s.trim();
     if s.len() > 1 && s.ends_with('/') {
         let stripped = s.trim_end_matches('/');
-        if stripped.is_empty() {
-            "/".to_owned()
-        } else {
-            stripped.to_owned()
-        }
+        if stripped.is_empty() { "/".to_owned() } else { stripped.to_owned() }
     } else {
         s.to_owned()
     }

@@ -55,22 +55,18 @@ pub fn open(cfg: &DatabaseConfig) -> anyhow::Result<Db> {
     // by the SQLite runtime for the brand-new connection below.
     register_sqlite_vec()?;
 
-    let conn = Connection::open(&cfg.path)
-        .with_context(|| format!("open sqlite at {}", cfg.path))?;
+    let conn =
+        Connection::open(&cfg.path).with_context(|| format!("open sqlite at {}", cfg.path))?;
 
     apply_pragmas(&conn, cfg.busy_timeout_ms)?;
     migrations::run(&conn)?;
 
-    Ok(Db {
-        inner: Arc::new(Mutex::new(conn)),
-    })
+    Ok(Db { inner: Arc::new(Mutex::new(conn)) })
 }
 
 fn apply_pragmas(conn: &Connection, busy_timeout_ms: u64) -> anyhow::Result<()> {
-    conn.pragma_update(None, "journal_mode", "WAL")
-        .context("PRAGMA journal_mode = WAL")?;
-    conn.pragma_update(None, "foreign_keys", "ON")
-        .context("PRAGMA foreign_keys = ON")?;
+    conn.pragma_update(None, "journal_mode", "WAL").context("PRAGMA journal_mode = WAL")?;
+    conn.pragma_update(None, "foreign_keys", "ON").context("PRAGMA foreign_keys = ON")?;
     conn.pragma_update(None, "busy_timeout", busy_timeout_ms as i64)
         .context("PRAGMA busy_timeout")?;
     Ok(())
@@ -102,9 +98,7 @@ fn register_sqlite_vec() -> anyhow::Result<()> {
         unsafe { std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ()) };
     let rc = unsafe { rusqlite::ffi::sqlite3_auto_extension(Some(entry)) };
     if rc != 0 {
-        return Err(anyhow::anyhow!(
-            "sqlite3_auto_extension returned {rc} for sqlite-vec"
-        ));
+        return Err(anyhow::anyhow!("sqlite3_auto_extension returned {rc} for sqlite-vec"));
     }
     Ok(())
 }
@@ -117,9 +111,7 @@ pub fn open_memory() -> anyhow::Result<Db> {
     let conn = Connection::open_in_memory().context("open in-memory sqlite")?;
     apply_pragmas(&conn, default_busy_timeout())?;
     migrations::run(&conn)?;
-    Ok(Db {
-        inner: Arc::new(Mutex::new(conn)),
-    })
+    Ok(Db { inner: Arc::new(Mutex::new(conn)) })
 }
 
 fn default_busy_timeout() -> u64 {
@@ -135,9 +127,7 @@ mod tests {
         let db = open_memory().unwrap();
         db.with_conn(|c| {
             // SQLite version sanity check
-            let v: String = c
-                .query_row("SELECT sqlite_version()", [], |r| r.get(0))
-                .unwrap();
+            let v: String = c.query_row("SELECT sqlite_version()", [], |r| r.get(0)).unwrap();
             assert!(!v.is_empty());
         });
     }
@@ -147,17 +137,10 @@ mod tests {
         let db = open_memory().unwrap();
         db.with_conn(|c| {
             // Smoke test that vec0 is available
-            c.execute_batch("CREATE VIRTUAL TABLE t USING vec0(x float[4])")
-                .unwrap();
-            let bytes: Vec<u8> = [0.0_f32, 0.0, 0.0, 1.0]
-                .iter()
-                .flat_map(|f| f.to_le_bytes())
-                .collect();
-            c.execute(
-                "INSERT INTO t (rowid, x) VALUES (1, ?1)",
-                rusqlite::params![bytes],
-            )
-            .unwrap();
+            c.execute_batch("CREATE VIRTUAL TABLE t USING vec0(x float[4])").unwrap();
+            let bytes: Vec<u8> =
+                [0.0_f32, 0.0, 0.0, 1.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+            c.execute("INSERT INTO t (rowid, x) VALUES (1, ?1)", rusqlite::params![bytes]).unwrap();
         });
     }
 
@@ -165,10 +148,8 @@ mod tests {
     fn open_creates_parent_dir() {
         let tmp = tempdir();
         let path = tmp.join("sub/dir/ledgapi.db");
-        let cfg = DatabaseConfig {
-            path: path.to_string_lossy().into_owned(),
-            busy_timeout_ms: 1000,
-        };
+        let cfg =
+            DatabaseConfig { path: path.to_string_lossy().into_owned(), busy_timeout_ms: 1000 };
         let _db = open(&cfg).unwrap();
         assert!(path.parent().unwrap().exists());
         assert!(path.exists());
@@ -180,10 +161,7 @@ mod tests {
         p.push(format!("ledgapi-test-{}", std::process::id()));
         p.push(format!(
             "{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&p).unwrap();
         p

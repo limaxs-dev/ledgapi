@@ -6,14 +6,8 @@ use rusqlite::Connection;
 use time::OffsetDateTime;
 
 const MIGRATIONS: &[(&str, &str)] = &[
-    (
-        "0001_init",
-        include_str!("../../../migrations/0001_init.sql"),
-    ),
-    (
-        "0002_contract_embeddings",
-        include_str!("../../../migrations/0002_contract_embeddings.sql"),
-    ),
+    ("0001_init", include_str!("../../../migrations/0001_init.sql")),
+    ("0002_contract_embeddings", include_str!("../../../migrations/0002_contract_embeddings.sql")),
 ];
 
 /// Apply all pending migrations. Idempotent.
@@ -31,11 +25,9 @@ pub fn run(conn: &Connection) -> anyhow::Result<()> {
 
     for (name, sql) in MIGRATIONS {
         let already: bool = conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM _migrations WHERE name = ?1)",
-                [name],
-                |r| r.get(0),
-            )
+            .query_row("SELECT EXISTS(SELECT 1 FROM _migrations WHERE name = ?1)", [name], |r| {
+                r.get(0)
+            })
             .unwrap_or(false);
 
         if already {
@@ -44,8 +36,7 @@ pub fn run(conn: &Connection) -> anyhow::Result<()> {
         }
 
         tracing::info!(migration = name, "applying");
-        conn.execute_batch(sql)
-            .with_context(|| format!("apply migration {name}"))?;
+        conn.execute_batch(sql).with_context(|| format!("apply migration {name}"))?;
 
         let now = OffsetDateTime::now_utc().unix_timestamp();
         conn.execute(
@@ -71,9 +62,8 @@ mod tests {
         run(&conn).unwrap();
         run(&conn).unwrap();
 
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM _migrations", [], |r| r.get(0))
-            .unwrap();
+        let count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _migrations", [], |r| r.get(0)).unwrap();
         assert_eq!(count, MIGRATIONS.len() as i64);
     }
 

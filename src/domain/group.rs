@@ -66,7 +66,9 @@ mod tests {
     #[test]
     fn group_ref_rejects_empty() {
         let g = GroupRef { name: String::new(), description: None };
-        assert!(matches!(g.validate(), Err(DomainError::Validation { ref field, .. }) if field == "group_name"));
+        assert!(
+            matches!(g.validate(), Err(DomainError::Validation { ref field, .. }) if field == "group_name")
+        );
     }
 
     #[test]

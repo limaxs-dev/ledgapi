@@ -58,24 +58,29 @@ impl GroupRepo for SqliteGroupRepo {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
-                let mut stmt = c.prepare(
-                    "SELECT g.id, g.name, COUNT(c.id)
+                let mut stmt = c
+                    .prepare(
+                        "SELECT g.id, g.name, COUNT(c.id)
                      FROM groups g
                      LEFT JOIN contracts c ON c.group_id = g.id
                      WHERE g.project_id = ?1
                      GROUP BY g.id
                      ORDER BY g.name ASC",
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
-                let rows = stmt.query_map([project_id.to_string()], |r| {
-                    let id: String = r.get(0)?;
-                    let name: String = r.get(1)?;
-                    let count: i64 = r.get(2)?;
-                    Ok((id, name, count))
-                }).map_err(|e| DomainError::Internal(e.to_string()))?;
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                let rows = stmt
+                    .query_map([project_id.to_string()], |r| {
+                        let id: String = r.get(0)?;
+                        let name: String = r.get(1)?;
+                        let count: i64 = r.get(2)?;
+                        Ok((id, name, count))
+                    })
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
 
                 let mut out = Vec::new();
                 for row in rows {
-                    let (id, name, count) = row.map_err(|e| DomainError::Internal(e.to_string()))?;
+                    let (id, name, count) =
+                        row.map_err(|e| DomainError::Internal(e.to_string()))?;
                     out.push(GroupSummary { id: parse_id(&id)?, name, contract_count: count });
                 }
                 Ok::<_, DomainError>(out)
@@ -97,11 +102,14 @@ mod tests {
     async fn setup() -> (crate::infra::db::Db, Id) {
         let db = open_memory().unwrap();
         let proj = SqliteProjectRepo { db: db.clone() };
-        let p = proj.create(&ProjectCreate {
-            slug: ProjectSlug::parse("api").unwrap(),
-            name: "API".to_owned(),
-            description: None,
-        }).await.unwrap();
+        let p = proj
+            .create(&ProjectCreate {
+                slug: ProjectSlug::parse("api").unwrap(),
+                name: "API".to_owned(),
+                description: None,
+            })
+            .await
+            .unwrap();
         (db, p.id)
     }
 
@@ -109,8 +117,14 @@ mod tests {
     async fn resolve_creates_then_finds() {
         let (db, pid) = setup().await;
         let repo = SqliteGroupRepo { db };
-        let g1 = repo.resolve(pid, &GroupRef { name: "Auth".to_owned(), description: Some("d".to_owned()) }).await.unwrap();
-        let g2 = repo.resolve(pid, &GroupRef { name: "Auth".to_owned(), description: None }).await.unwrap();
+        let g1 = repo
+            .resolve(pid, &GroupRef { name: "Auth".to_owned(), description: Some("d".to_owned()) })
+            .await
+            .unwrap();
+        let g2 = repo
+            .resolve(pid, &GroupRef { name: "Auth".to_owned(), description: None })
+            .await
+            .unwrap();
         assert_eq!(g1.id, g2.id);
         assert_eq!(g1.name, "Auth");
     }

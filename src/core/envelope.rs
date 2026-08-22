@@ -92,25 +92,13 @@ impl<T: Serialize> ApiResponse<T> {
     /// Build a successful response.
     #[must_use]
     pub fn ok(data: T) -> Self {
-        Self {
-            success: true,
-            code: 200,
-            message: "OK".to_owned(),
-            data: Some(data),
-            errors: None,
-        }
+        Self { success: true, code: 200, message: "OK".to_owned(), data: Some(data), errors: None }
     }
 
     /// Build a successful response with a custom message.
     #[must_use]
     pub fn ok_with_message(data: T, message: impl Into<String>) -> Self {
-        Self {
-            success: true,
-            code: 200,
-            message: message.into(),
-            data: Some(data),
-            errors: None,
-        }
+        Self { success: true, code: 200, message: message.into(), data: Some(data), errors: None }
     }
 }
 
@@ -155,8 +143,8 @@ mod tests {
 
     #[test]
     fn with_field_attaches_field() {
-        let err = ApiError::new(ApiErrorCode::ValidationFailed, "must be valid")
-            .with_field("email");
+        let err =
+            ApiError::new(ApiErrorCode::ValidationFailed, "must be valid").with_field("email");
         assert_eq!(err.field.as_deref(), Some("email"));
     }
 

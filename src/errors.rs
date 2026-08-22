@@ -27,8 +27,9 @@ impl AppError {
     #[must_use]
     pub fn status(&self) -> StatusCode {
         match self {
-            Self::Domain(d) => StatusCode::from_u16(d.http_status())
-                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            Self::Domain(d) => {
+                StatusCode::from_u16(d.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+            }
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -84,10 +85,7 @@ impl IntoResponse for AppError {
 impl ApiResponse<()> {
     /// Replace the errors array of an envelope.
     #[must_use]
-    pub fn clone_with_errors(
-        self,
-        errors: Vec<crate::core::envelope::ApiError>,
-    ) -> Self {
+    pub fn clone_with_errors(self, errors: Vec<crate::core::envelope::ApiError>) -> Self {
         Self { errors: Some(errors), ..self }
     }
 }

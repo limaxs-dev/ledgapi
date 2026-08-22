@@ -151,17 +151,10 @@ async fn build_tool_context(
 ) -> Result<ToolContext, (i32, String, Option<Value>)> {
     // Resolve project_slug from arguments (every tool except
     // `list_projects` has it; absent for tools that don't).
-    let project_slug = arguments
-        .get("project_slug")
-        .and_then(|v| v.as_str())
-        .map(str::to_owned);
+    let project_slug = arguments.get("project_slug").and_then(|v| v.as_str()).map(str::to_owned);
     let project_id = if let Some(slug) = &project_slug {
         let parsed = crate::domain::project::ProjectSlug::parse(slug).map_err(|e| {
-            (
-                -32602,
-                e.message(),
-                Some(json!({"code":"validation_failed","field":"project_slug"})),
-            )
+            (-32602, e.message(), Some(json!({"code":"validation_failed","field":"project_slug"})))
         })?;
         match state.repos().projects().find_by_slug(&parsed).await {
             Ok(Some(p)) => p.id,
@@ -173,11 +166,7 @@ async fn build_tool_context(
                 ));
             }
             Err(e) => {
-                return Err((
-                    -32603,
-                    e.message(),
-                    Some(json!({"code":"internal_error"})),
-                ));
+                return Err((-32603, e.message(), Some(json!({"code":"internal_error"}))));
             }
         }
     } else {
@@ -243,12 +232,7 @@ async fn respond(
     result: Result<Value, (i32, String, Option<Value>)>,
 ) -> Response {
     let response = match result {
-        Ok(value) => JsonRpcResponse {
-            jsonrpc: "2.0",
-            id,
-            result: Some(value),
-            error: None,
-        },
+        Ok(value) => JsonRpcResponse { jsonrpc: "2.0", id, result: Some(value), error: None },
         Err((code, message, data)) => JsonRpcResponse {
             jsonrpc: "2.0",
             id,
@@ -279,8 +263,7 @@ async fn respond_error(
     };
     let body = serde_json::to_vec(&frame).unwrap_or_default();
     let mut resp = (status, body).into_response();
-    resp.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    resp.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
     resp
 }
 
@@ -290,8 +273,7 @@ async fn respond_bytes(_state: &AppState, body: Vec<u8>) -> Response {
     // the Accept header — clients that prefer JSON work without SSE.
     // If SSE is required, the simplest wrapper is below.
     let mut resp = (StatusCode::OK, body).into_response();
-    resp.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    resp.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
     resp
 }
 
@@ -308,12 +290,7 @@ pub async fn handle_sse(
     }
     let value = dispatch(&state, req).await;
     let response = match value {
-        Ok(v) => JsonRpcResponse {
-            jsonrpc: "2.0",
-            id,
-            result: Some(v),
-            error: None,
-        },
+        Ok(v) => JsonRpcResponse { jsonrpc: "2.0", id, result: Some(v), error: None },
         Err((code, message, data)) => JsonRpcResponse {
             jsonrpc: "2.0",
             id,
@@ -332,10 +309,8 @@ pub async fn handle_sse(
         resp.headers_mut()
             .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
     } else {
-        resp.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/json"),
-        );
+        resp.headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
     }
     resp
 }

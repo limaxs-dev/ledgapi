@@ -7,9 +7,10 @@ use crate::domain::ports::{ListContractsFilter, Repos};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
-pub async fn execute(repos: &dyn Repos, project_slug: crate::domain::project::ProjectSlug)
-    -> Result<ExportResult, DomainError>
-{
+pub async fn execute(
+    repos: &dyn Repos,
+    project_slug: crate::domain::project::ProjectSlug,
+) -> Result<ExportResult, DomainError> {
     let project = repos
         .projects()
         .find_by_slug(&project_slug)
@@ -29,12 +30,10 @@ pub async fn execute(repos: &dyn Repos, project_slug: crate::domain::project::Pr
     }
 
     let doc = build_doc(&project.name, project.description.as_deref(), &full);
-    let yaml = serde_yaml::to_string(&doc).map_err(|e| DomainError::Internal(format!("yaml: {e}")))?;
+    let yaml =
+        serde_yaml::to_string(&doc).map_err(|e| DomainError::Internal(format!("yaml: {e}")))?;
 
-    Ok(ExportResult {
-        yaml,
-        download_url: format!("/projects/{}/openapi.yml", project.slug),
-    })
+    Ok(ExportResult { yaml, download_url: format!("/projects/{}/openapi.yml", project.slug) })
 }
 
 pub struct ExportResult {
@@ -42,17 +41,18 @@ pub struct ExportResult {
     pub download_url: String,
 }
 
-fn build_doc(title: &str, description: Option<&str>, contracts: &[crate::domain::contract::Contract]) -> Value {
+fn build_doc(
+    title: &str,
+    description: Option<&str>,
+    contracts: &[crate::domain::contract::Contract],
+) -> Value {
     let mut paths: BTreeMap<String, BTreeMap<String, Value>> = BTreeMap::new();
     let mut security_schemes: Map<String, Value> = Map::new();
     let mut tags: Vec<Value> = Vec::new();
 
     for c in contracts {
         let op = build_operation(c);
-        paths
-            .entry(c.path.clone())
-            .or_default()
-            .insert(c.method.as_str().to_lowercase(), op);
+        paths.entry(c.path.clone()).or_default().insert(c.method.as_str().to_lowercase(), op);
 
         if let Some(a) = c.auth_type {
             add_security_scheme(&mut security_schemes, a);
@@ -70,10 +70,8 @@ fn build_doc(title: &str, description: Option<&str>, contracts: &[crate::domain:
         components.insert("securitySchemes".to_owned(), Value::Object(security_schemes));
     }
 
-    let paths_json: Map<String, Value> = paths
-        .into_iter()
-        .map(|(p, ops)| (p, Value::Object(ops.into_iter().collect())))
-        .collect();
+    let paths_json: Map<String, Value> =
+        paths.into_iter().map(|(p, ops)| (p, Value::Object(ops.into_iter().collect()))).collect();
 
     let mut info = Map::new();
     info.insert("title".into(), Value::String(title.to_owned()));
@@ -98,7 +96,9 @@ fn build_doc(title: &str, description: Option<&str>, contracts: &[crate::domain:
 fn build_operation(c: &crate::domain::contract::Contract) -> Value {
     let mut op = Map::new();
     op.insert("summary".into(), Value::String(c.summary.clone()));
-    if let Some(d) = &c.description { op.insert("description".into(), Value::String(d.clone())); }
+    if let Some(d) = &c.description {
+        op.insert("description".into(), Value::String(d.clone()));
+    }
 
     // Parameters from path template + request_params JSON Schema.
     let mut parameters: Vec<Value> = Vec::new();
@@ -119,21 +119,27 @@ fn build_operation(c: &crate::domain::contract::Contract) -> Value {
 
     // Body
     if let Some(body) = &c.request_body_schema {
-        op.insert("requestBody".into(), json!({
-            "required": true,
-            "content": {"application/json": {"schema": body}}
-        }));
+        op.insert(
+            "requestBody".into(),
+            json!({
+                "required": true,
+                "content": {"application/json": {"schema": body}}
+            }),
+        );
     }
 
     // Response
     let mut resp_content = Map::new();
     resp_content.insert("application/json".into(), json!({"schema": c.response_schema}));
-    op.insert("responses".into(), json!({
-        "200": {
-            "description": "Successful response",
-            "content": resp_content
-        }
-    }));
+    op.insert(
+        "responses".into(),
+        json!({
+            "200": {
+                "description": "Successful response",
+                "content": resp_content
+            }
+        }),
+    );
 
     if let Some(a) = c.auth_type {
         if a != AuthType::None {
@@ -142,7 +148,10 @@ fn build_operation(c: &crate::domain::contract::Contract) -> Value {
     }
 
     if !c.tags.is_empty() {
-        op.insert("tags".into(), Value::Array(c.tags.iter().map(|t| Value::String(t.clone())).collect()));
+        op.insert(
+            "tags".into(),
+            Value::Array(c.tags.iter().map(|t| Value::String(t.clone())).collect()),
+        );
     }
 
     Value::Object(op)
@@ -165,8 +174,8 @@ fn path_param_names(path: &str) -> Vec<String> {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'{' {
-            if let Some(end) = path[i+1..].find('}') {
-                let name = &path[i+1..i+1+end];
+            if let Some(end) = path[i + 1..].find('}') {
+                let name = &path[i + 1..i + 1 + end];
                 out.push(name.to_owned());
                 i = i + 1 + end + 1;
                 continue;
@@ -199,8 +208,8 @@ fn extend_params_from_schema(parameters: &mut Vec<Value>, schema: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::contract::{Contract, ContractCreate, Method, Status};
     use crate::core::id::Id;
+    use crate::domain::contract::{Contract, ContractCreate, Method, Status};
     use crate::domain::project::{ProjectCreate, ProjectSlug};
     use crate::infra::db::pool::open_memory;
     use crate::infra::repos::SqliteRepos;
@@ -209,11 +218,15 @@ mod tests {
     async fn export_with_no_contracts_produces_valid_yaml() {
         let db = open_memory().unwrap();
         let repos = SqliteRepos::new(db);
-        repos.projects().create(&ProjectCreate {
-            slug: ProjectSlug::parse("api").unwrap(),
-            name: "My API".to_owned(),
-            description: Some("desc".to_owned()),
-        }).await.unwrap();
+        repos
+            .projects()
+            .create(&ProjectCreate {
+                slug: ProjectSlug::parse("api").unwrap(),
+                name: "My API".to_owned(),
+                description: Some("desc".to_owned()),
+            })
+            .await
+            .unwrap();
         let r = execute(&repos, ProjectSlug::parse("api").unwrap()).await.unwrap();
         assert!(r.yaml.contains("openapi: 3.0.3"));
         assert!(r.yaml.contains("title: My API"));

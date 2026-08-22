@@ -18,8 +18,8 @@ use crate::web::handlers;
 use crate::web::health;
 use crate::web::openapi_export;
 use crate::web::setup;
-use axum::Router;
 use axum::Extension;
+use axum::Router;
 use axum::middleware::from_fn;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -35,10 +35,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(handlers::dashboard))
         .route("/projects/{slug}", get(handlers::project))
-        .route(
-            "/projects/{slug}/contracts/{id}",
-            get(handlers::contract),
-        )
+        .route("/projects/{slug}/contracts/{id}", get(handlers::contract))
         .route("/projects/{slug}/search", get(handlers::search))
         .route("/projects/{slug}/openapi.yml", get(openapi_export::yaml))
         .route("/setup", get(setup::show))
@@ -49,9 +46,7 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/mcp",
             post(mcp_handle)
-                .layer(from_fn(move |req, next| {
-                    bearer_auth(req, next, state_for_bearer.clone())
-                })),
+                .layer(from_fn(move |req, next| bearer_auth(req, next, state_for_bearer.clone()))),
         )
         .layer(Extension(state))
 }

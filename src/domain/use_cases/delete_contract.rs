@@ -33,7 +33,8 @@ mod tests {
     async fn delete_unknown_project_errors() {
         let db = open_memory().unwrap();
         let repos = SqliteRepos::new(db);
-        let err = execute(&repos, ProjectSlug::parse("missing").unwrap(), Id::new()).await.unwrap_err();
+        let err =
+            execute(&repos, ProjectSlug::parse("missing").unwrap(), Id::new()).await.unwrap_err();
         assert!(matches!(err, DomainError::NotFound { .. }));
     }
 }

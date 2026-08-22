@@ -5,10 +5,7 @@ use crate::domain::ports::Repos;
 use crate::domain::project::{Project, ProjectCreate, ProjectSummary};
 
 /// Create a new project. Validates the input, then delegates.
-pub async fn create(
-    repos: &dyn Repos,
-    input: ProjectCreate,
-) -> Result<Project, DomainError> {
+pub async fn create(repos: &dyn Repos, input: ProjectCreate) -> Result<Project, DomainError> {
     input.validate()?;
     repos.projects().create(&input).await
 }

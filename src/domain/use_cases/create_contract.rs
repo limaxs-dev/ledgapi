@@ -3,9 +3,7 @@
 
 use crate::config::EmbedConfig;
 use crate::core::id::Id;
-use crate::domain::contract::{
-    Contract, ContractCreate, ContractSummary, normalize_path,
-};
+use crate::domain::contract::{Contract, ContractCreate, ContractSummary, normalize_path};
 use crate::domain::errors::{DomainError, SimilarContract};
 use crate::domain::ports::{Embedder, ListContractsFilter, Repos, SearchMode, SearchResult};
 use std::sync::Arc;
@@ -37,30 +35,23 @@ pub async fn execute(
         .ok_or(DomainError::NotFound { resource: "project" })?;
 
     let group_id = match &input.group_name {
-        Some(name) if !name.is_empty() => {
-            Some(
-                repos
-                    .groups()
-                    .resolve(
-                        project.id,
-                        &crate::domain::group::GroupRef {
-                            name: name.clone(),
-                            description: None,
-                        },
-                    )
-                    .await?
-                    .id,
-            )
-        }
+        Some(name) if !name.is_empty() => Some(
+            repos
+                .groups()
+                .resolve(
+                    project.id,
+                    &crate::domain::group::GroupRef { name: name.clone(), description: None },
+                )
+                .await?
+                .id,
+        ),
         _ => None,
     };
 
     let text = input.embedding_input();
     let embedding = embedder.embed(&text).await?;
-    let matches = repos
-        .contracts()
-        .top_k_similar(project.id, &embedding, embed_cfg.knn_top_k)
-        .await?;
+    let matches =
+        repos.contracts().top_k_similar(project.id, &embedding, embed_cfg.knn_top_k).await?;
 
     let max_similarity = matches.iter().map(|(_, s)| *s).fold(0.0_f32, f32::max);
     if max_similarity >= embed_cfg.similarity_threshold && !input.force {
@@ -68,18 +59,11 @@ pub async fn execute(
         return Err(DomainError::SimilarFound { candidates });
     }
 
-    let contract = repos
-        .contracts()
-        .create(project.id, group_id, &input)
-        .await?;
+    let contract = repos.contracts().create(project.id, group_id, &input).await?;
 
     // Best-effort: persist the embedding. If this fails, we still keep
     // the contract (semantic search just won't find it).
-    if let Err(e) = repos
-        .embeddings()
-        .upsert(contract.id, project.id, &embedding)
-        .await
-    {
+    if let Err(e) = repos.embeddings().upsert(contract.id, project.id, &embedding).await {
         tracing::warn!(error = %e, contract_id = %contract.id, "failed to upsert embedding");
     }
 
@@ -191,12 +175,7 @@ mod tests {
         (repos, Arc::new(StubEmbedder::new()), p.slug)
     }
 
-    fn create(
-        method: Method,
-        path: &str,
-        summary: &str,
-        force: bool,
-    ) -> ContractCreate {
+    fn create(method: Method, path: &str, summary: &str, force: bool) -> ContractCreate {
         ContractCreate {
             method,
             path: path.to_owned(),
@@ -219,7 +198,9 @@ mod tests {
     #[tokio::test]
     async fn creates_contract_when_no_similar() {
         let (repos, emb, slug) = boot().await;
-        let r = execute(&repos, emb, &CFG, slug, create(Method::Get, "/api/users", "List", false)).await.unwrap();
+        let r = execute(&repos, emb, &CFG, slug, create(Method::Get, "/api/users", "List", false))
+            .await
+            .unwrap();
         assert_eq!(r.status, "created");
     }
 
@@ -227,13 +208,29 @@ mod tests {
     async fn returns_warning_when_similar_found() {
         let (repos, emb, slug) = boot().await;
         // First contract: create ok
-        execute(&repos, emb.clone(), &CFG, slug.clone(), create(Method::Get, "/api/users", "List users", false)).await.unwrap();
+        execute(
+            &repos,
+            emb.clone(),
+            &CFG,
+            slug.clone(),
+            create(Method::Get, "/api/users", "List users", false),
+        )
+        .await
+        .unwrap();
         // Second contract with the same text — stub embedder hashes the
         // full embedding input (method + path + summary + description),
         // so the vector matches only when all four are identical. The
         // semantic check fires before the (project_id, method, path)
         // UNIQUE constraint, so we never reach DuplicateKey here.
-        let err = execute(&repos, emb, &CFG, slug, create(Method::Get, "/api/users", "List users", false)).await.unwrap_err();
+        let err = execute(
+            &repos,
+            emb,
+            &CFG,
+            slug,
+            create(Method::Get, "/api/users", "List users", false),
+        )
+        .await
+        .unwrap_err();
         match err {
             DomainError::SimilarFound { candidates } => {
                 assert!(!candidates.is_empty());
@@ -246,16 +243,40 @@ mod tests {
     #[tokio::test]
     async fn force_bypasses_warning_but_still_returns_candidates_in_msg() {
         let (repos, emb, slug) = boot().await;
-        execute(&repos, emb.clone(), &CFG, slug.clone(), create(Method::Get, "/api/users", "List users", false)).await.unwrap();
+        execute(
+            &repos,
+            emb.clone(),
+            &CFG,
+            slug.clone(),
+            create(Method::Get, "/api/users", "List users", false),
+        )
+        .await
+        .unwrap();
         // Force creates without warning.
-        let r = execute(&repos, emb, &CFG, slug, create(Method::Get, "/api/users-v3", "List users", true)).await.unwrap();
+        let r = execute(
+            &repos,
+            emb,
+            &CFG,
+            slug,
+            create(Method::Get, "/api/users-v3", "List users", true),
+        )
+        .await
+        .unwrap();
         assert_eq!(r.status, "created");
     }
 
     #[tokio::test]
     async fn exact_duplicate_method_path_returns_duplicate_key() {
         let (repos, emb, slug) = boot().await;
-        execute(&repos, emb.clone(), &CFG, slug.clone(), create(Method::Get, "/api/users", "List users", false)).await.unwrap();
+        execute(
+            &repos,
+            emb.clone(),
+            &CFG,
+            slug.clone(),
+            create(Method::Get, "/api/users", "List users", false),
+        )
+        .await
+        .unwrap();
         // StubEmbedder gives same vector → semantic warning fires first,
         // before the UNIQUE check. To test the UNIQUE path we need an
         // embedding that *differs* from the existing one. Use a real
@@ -269,7 +290,15 @@ mod tests {
     #[tokio::test]
     async fn unknown_project_errors() {
         let (repos, emb, _) = boot().await;
-        let err = execute(&repos, emb, &CFG, ProjectSlug::parse("missing").unwrap(), create(Method::Get, "/x", "y", false)).await.unwrap_err();
+        let err = execute(
+            &repos,
+            emb,
+            &CFG,
+            ProjectSlug::parse("missing").unwrap(),
+            create(Method::Get, "/x", "y", false),
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, DomainError::NotFound { .. }));
     }
 

@@ -29,7 +29,8 @@ impl ProjectSlug {
                 message: "must be at most 64 characters".to_owned(),
             });
         }
-        if !s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_') {
+        if !s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+        {
             return Err(DomainError::Validation {
                 field: "slug".to_owned(),
                 message: "must contain only lowercase a-z, 0-9, '-', '_'".to_owned(),

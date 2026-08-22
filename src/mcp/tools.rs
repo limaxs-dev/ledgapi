@@ -34,9 +34,5 @@ pub trait Tool: Send + Sync {
 
     /// Execute the tool. Errors returned here map to JSON-RPC error
     /// frames unless `is_mcp_error()` returns false (e.g., `SimilarFound`).
-    async fn execute(
-        &self,
-        ctx: ToolContext,
-        input: Value,
-    ) -> Result<Value, DomainError>;
+    async fn execute(&self, ctx: ToolContext, input: Value) -> Result<Value, DomainError>;
 }

@@ -3,8 +3,8 @@ use common::TestApp;
 use ledgapi::config::{AppConfig, DatabaseConfig, EmbedConfig, LogConfig, LogFormat, ServerConfig};
 use ledgapi::infra::auth::token;
 use ledgapi::state::{AppState, SetupState};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 /// Build an app where `setup_active=true` and a fresh plaintext is in memory.
@@ -16,10 +16,7 @@ fn boot_with_active_setup(plaintext: &str) -> TestApp {
             bind: "127.0.0.1:0".into(),
             shutdown_timeout: Duration::from_secs(1),
         },
-        database: DatabaseConfig {
-            path: ":memory:".into(),
-            busy_timeout_ms: 1000,
-        },
+        database: DatabaseConfig { path: ":memory:".into(), busy_timeout_ms: 1000 },
         embed: EmbedConfig {
             cache_dir: String::new(),
             model: String::new(),
@@ -27,10 +24,7 @@ fn boot_with_active_setup(plaintext: &str) -> TestApp {
             knn_top_k: 5,
             hybrid_limit: 10,
         },
-        log: LogConfig {
-            format: LogFormat::Pretty,
-            level: "warn".into(),
-        },
+        log: LogConfig { format: LogFormat::Pretty, level: "warn".into() },
     });
     app.state = AppState {
         repos: app.state.repos.clone(),
@@ -85,10 +79,7 @@ async fn setup_page_returns_410_after_ttl() {
             bind: "127.0.0.1:0".into(),
             shutdown_timeout: Duration::from_secs(1),
         },
-        database: DatabaseConfig {
-            path: ":memory:".into(),
-            busy_timeout_ms: 1000,
-        },
+        database: DatabaseConfig { path: ":memory:".into(), busy_timeout_ms: 1000 },
         embed: EmbedConfig {
             cache_dir: String::new(),
             model: String::new(),
@@ -96,10 +87,7 @@ async fn setup_page_returns_410_after_ttl() {
             knn_top_k: 5,
             hybrid_limit: 10,
         },
-        log: LogConfig {
-            format: LogFormat::Pretty,
-            level: "warn".into(),
-        },
+        log: LogConfig { format: LogFormat::Pretty, level: "warn".into() },
     });
     app.state = AppState {
         repos: app.state.repos.clone(),

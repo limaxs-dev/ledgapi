@@ -24,9 +24,9 @@ pub async fn list(
 mod tests {
     use super::*;
     use crate::domain::project::{ProjectCreate, ProjectSlug};
+    use crate::domain::use_cases::manage_project;
     use crate::infra::db::pool::open_memory;
     use crate::infra::repos::SqliteRepos;
-    use crate::domain::use_cases::manage_project;
 
     #[tokio::test]
     async fn resolve_creates_group() {
@@ -42,13 +42,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let g = resolve(
-            &repos,
-            p.id,
-            GroupRef { name: "Auth".to_owned(), description: None },
-        )
-        .await
-        .unwrap();
+        let g = resolve(&repos, p.id, GroupRef { name: "Auth".to_owned(), description: None })
+            .await
+            .unwrap();
         assert_eq!(g.name, "Auth");
     }
 

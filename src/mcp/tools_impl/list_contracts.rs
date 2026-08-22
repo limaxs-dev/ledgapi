@@ -62,19 +62,15 @@ impl Tool for ListContractsTool {
             let group = crate::domain::use_cases::manage_group::resolve(
                 ctx.state.repos(),
                 ctx.project_id,
-                crate::domain::group::GroupRef {
-                    name: name.clone(),
-                    description: None,
-                },
+                crate::domain::group::GroupRef { name: name.clone(), description: None },
             )
             .await?;
             filter.group_id = Some(group.id);
         }
         filter.limit = p.limit.unwrap_or(100).clamp(1, 500);
 
-        let list =
-            crate::domain::use_cases::create_contract::list(ctx.state.repos(), slug, filter)
-                .await?;
+        let list = crate::domain::use_cases::create_contract::list(ctx.state.repos(), slug, filter)
+            .await?;
         let arr: Vec<Value> = list
             .iter()
             .map(|c| {

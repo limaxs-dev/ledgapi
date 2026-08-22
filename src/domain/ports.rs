@@ -83,11 +83,7 @@ pub trait ContractRepo: Send + Sync {
         input: &ContractCreate,
     ) -> Result<Contract, DomainError>;
 
-    async fn find_by_id(
-        &self,
-        project_id: Id,
-        contract_id: Id,
-    ) -> Result<Contract, DomainError>;
+    async fn find_by_id(&self, project_id: Id, contract_id: Id) -> Result<Contract, DomainError>;
 
     async fn update(
         &self,

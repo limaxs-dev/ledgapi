@@ -17,9 +17,8 @@ use time::OffsetDateTime;
 
 /// `GET /` — list every project with its contract count.
 pub async fn dashboard(Extension(state): Extension<AppState>) -> Response {
-    let list = crate::domain::use_cases::manage_project::list(state.repos())
-        .await
-        .unwrap_or_default();
+    let list =
+        crate::domain::use_cases::manage_project::list(state.repos()).await.unwrap_or_default();
     let rows: Vec<PRow> = list
         .into_iter()
         .map(|p| PRow {
@@ -28,18 +27,12 @@ pub async fn dashboard(Extension(state): Extension<AppState>) -> Response {
             contract_count: p.contract_count,
         })
         .collect();
-    let tpl = DashboardTpl {
-        title: "Projects",
-        projects: rows,
-    };
+    let tpl = DashboardTpl { title: "Projects", projects: rows };
     tpl.render().unwrap_or_default().into_response()
 }
 
 /// `GET /projects/{slug}` — project detail (contracts + groups + search box).
-pub async fn project(
-    Extension(state): Extension<AppState>,
-    Path(slug): Path<String>,
-) -> Response {
+pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<String>) -> Response {
     let Ok(slug) = ProjectSlug::parse(&slug) else {
         return not_found().await;
     };
@@ -50,10 +43,7 @@ pub async fn project(
     let contracts = crate::domain::use_cases::create_contract::list(
         state.repos(),
         project.slug.clone(),
-        ListContractsFilter {
-            limit: 100,
-            ..Default::default()
-        },
+        ListContractsFilter { limit: 100, ..Default::default() },
     )
     .await
     .unwrap_or_default();
@@ -75,10 +65,7 @@ pub async fn project(
         .collect();
     let group_rows: Vec<GroupRow> = groups
         .into_iter()
-        .map(|g| GroupRow {
-            name: g.name,
-            contract_count: g.contract_count,
-        })
+        .map(|g| GroupRow { name: g.name, contract_count: g.contract_count })
         .collect();
 
     let tpl = ProjectTpl {
@@ -103,7 +90,8 @@ pub async fn contract(
         return not_found().await;
     };
 
-    let Ok(c) = crate::domain::use_cases::create_contract::get(state.repos(), slug, id).await else {
+    let Ok(c) = crate::domain::use_cases::create_contract::get(state.repos(), slug, id).await
+    else {
         return not_found().await;
     };
 
@@ -201,6 +189,5 @@ fn json_pretty(v: serde_json::Value) -> String {
 
 /// RFC3339 string for a datetime, falling back to `Display` on format error.
 fn format_dt(dt: OffsetDateTime) -> String {
-    dt.format(&time::format_description::well_known::Rfc3339)
-        .unwrap_or_else(|_| dt.to_string())
+    dt.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| dt.to_string())
 }

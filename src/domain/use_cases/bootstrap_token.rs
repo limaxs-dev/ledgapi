@@ -7,9 +7,7 @@ use crate::domain::ports::TokenRepo;
 /// Ensure the system has at least one token. If the table is empty,
 /// generate one and persist its hash. Returns `(plaintext, true)` for
 /// first-run, `(existing_marker, false)` otherwise.
-pub async fn ensure(
-    tokens: &dyn TokenRepo,
-) -> Result<(String, bool), DomainError> {
+pub async fn ensure(tokens: &dyn TokenRepo) -> Result<(String, bool), DomainError> {
     if tokens.count().await? > 0 {
         return Ok((String::new(), false));
     }

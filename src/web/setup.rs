@@ -24,9 +24,6 @@ pub async fn show(Extension(state): Extension<AppState>) -> Response {
     // without storing it; per spec §6.3 we only show it ONCE. For the
     // page to be useful, we keep a copy in memory while setup is active.
     let token = state.bootstrap_token_plaintext().unwrap_or_default();
-    let tpl = SetupTpl {
-        title: "Setup · ledgapi",
-        token,
-    };
+    let tpl = SetupTpl { title: "Setup · ledgapi", token };
     (StatusCode::OK, tpl.render().unwrap_or_default()).into_response()
 }

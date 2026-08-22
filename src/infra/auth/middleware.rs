@@ -25,21 +25,11 @@ fn extract_bearer(req: &Request) -> Option<&str> {
 /// the protected route. The `AppState` is passed explicitly (since the
 /// router no longer carries state via `with_state`); see
 /// `web::router::router`.
-pub async fn bearer_auth(
-    req: Request,
-    next: Next,
-    state: AppState,
-) -> Result<Response, AppError> {
-    let token = extract_bearer(&req)
-        .ok_or_else(|| AppError::from(DomainError::AuthMissing))?;
+pub async fn bearer_auth(req: Request, next: Next, state: AppState) -> Result<Response, AppError> {
+    let token = extract_bearer(&req).ok_or_else(|| AppError::from(DomainError::AuthMissing))?;
 
     let hash = token::sha256_hex(token);
-    let valid = state
-        .repos()
-        .tokens()
-        .exists(&hash)
-        .await
-        .map_err(AppError::from)?;
+    let valid = state.repos().tokens().exists(&hash).await.map_err(AppError::from)?;
     if !valid {
         return Err(AppError::from(DomainError::AuthInvalid));
     }
@@ -69,11 +59,7 @@ mod tests {
     }
 
     fn req_no_header() -> Request {
-        AxumRequest::builder()
-            .method(Method::GET)
-            .uri("/mcp")
-            .body(Body::empty())
-            .unwrap()
+        AxumRequest::builder().method(Method::GET).uri("/mcp").body(Body::empty()).unwrap()
     }
 
     #[test]

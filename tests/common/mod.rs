@@ -1,8 +1,8 @@
 //! Shared test helpers for integration tests.
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, Response};
-use axum::Router;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -34,11 +34,7 @@ impl TestApp {
 
     /// Send a request through the router.
     pub async fn oneshot(&self, request: Request<Body>) -> Response<Body> {
-        self.router
-            .clone()
-            .oneshot(request)
-            .await
-            .expect("test_app oneshot failed")
+        self.router.clone().oneshot(request).await.expect("test_app oneshot failed")
     }
 
     /// Helper: JSON-RPC request body.

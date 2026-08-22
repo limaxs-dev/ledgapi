@@ -19,8 +19,8 @@ pub use token_repo_sqlite::SqliteTokenRepo;
 
 use crate::core::id::Id;
 use crate::domain::ports::{
-    ContractRepo, EmbeddingRepo, GroupRepo, ListContractsFilter, ProjectRepo, Repos,
-    SearchResult, TokenRepo,
+    ContractRepo, EmbeddingRepo, GroupRepo, ListContractsFilter, ProjectRepo, Repos, SearchResult,
+    TokenRepo,
 };
 use std::sync::Arc;
 
@@ -51,11 +51,21 @@ impl SqliteRepos {
 }
 
 impl Repos for SqliteRepos {
-    fn projects(&self) -> &dyn ProjectRepo { self.projects.as_ref() }
-    fn groups(&self) -> &dyn GroupRepo { self.groups.as_ref() }
-    fn contracts(&self) -> &dyn ContractRepo { self.contracts.as_ref() }
-    fn embeddings(&self) -> &dyn EmbeddingRepo { self.embeddings.as_ref() }
-    fn tokens(&self) -> &dyn TokenRepo { self.tokens.as_ref() }
+    fn projects(&self) -> &dyn ProjectRepo {
+        self.projects.as_ref()
+    }
+    fn groups(&self) -> &dyn GroupRepo {
+        self.groups.as_ref()
+    }
+    fn contracts(&self) -> &dyn ContractRepo {
+        self.contracts.as_ref()
+    }
+    fn embeddings(&self) -> &dyn EmbeddingRepo {
+        self.embeddings.as_ref()
+    }
+    fn tokens(&self) -> &dyn TokenRepo {
+        self.tokens.as_ref()
+    }
 }
 
 // Convenience: silence "unused" for `SearchResult` / `ListContractsFilter` /

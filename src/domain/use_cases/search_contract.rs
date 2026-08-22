@@ -32,31 +32,23 @@ pub async fn execute(
         .ok_or(DomainError::NotFound { resource: "project" })?;
 
     let group_id = match group_name {
-        Some(name) if !name.is_empty() => {
-            Some(
-                repos
-                    .groups()
-                    .resolve(
-                        project.id,
-                        &crate::domain::group::GroupRef {
-                            name: name.to_owned(),
-                            description: None,
-                        },
-                    )
-                    .await?
-                    .id,
-            )
-        }
+        Some(name) if !name.is_empty() => Some(
+            repos
+                .groups()
+                .resolve(
+                    project.id,
+                    &crate::domain::group::GroupRef { name: name.to_owned(), description: None },
+                )
+                .await?
+                .id,
+        ),
         _ => None,
     };
 
     let limit = limit.unwrap_or(embed_cfg.hybrid_limit).clamp(1, 500);
 
     let exact = if matches!(mode, SearchMode::Exact | SearchMode::Hybrid) {
-        repos
-            .contracts()
-            .search_exact(project.id, group_id, query, 50)
-            .await?
+        repos.contracts().search_exact(project.id, group_id, query, 50).await?
     } else {
         vec![]
     };
@@ -65,10 +57,7 @@ pub async fn execute(
         let text = format!("{project_slug} {query}");
         let emb = embedder.embed(&text).await?;
         let k = 50;
-        repos
-            .contracts()
-            .search_semantic(project.id, group_id, &emb, k)
-            .await?
+        repos.contracts().search_semantic(project.id, group_id, &emb, k).await?
     } else {
         vec![]
     };
@@ -76,11 +65,7 @@ pub async fn execute(
     Ok(rrf_merge(exact, semantic, limit))
 }
 
-fn rrf_merge(
-    exact: Vec<SearchResult>,
-    semantic: Vec<(Id, f32)>,
-    limit: i64,
-) -> Vec<SearchResult> {
+fn rrf_merge(exact: Vec<SearchResult>, semantic: Vec<(Id, f32)>, limit: i64) -> Vec<SearchResult> {
     const K: f32 = 60.0;
 
     let mut scores: HashMap<Id, f32> = HashMap::new();
@@ -131,8 +116,24 @@ mod tests {
     #[test]
     fn rrf_merge_combines_lists() {
         let exact = vec![
-            SearchResult { id: id(1), method: Method::Get, path: "/a".into(), summary: String::new(), status: Status::Draft, tags: vec![], similarity: None },
-            SearchResult { id: id(2), method: Method::Get, path: "/b".into(), summary: String::new(), status: Status::Draft, tags: vec![], similarity: None },
+            SearchResult {
+                id: id(1),
+                method: Method::Get,
+                path: "/a".into(),
+                summary: String::new(),
+                status: Status::Draft,
+                tags: vec![],
+                similarity: None,
+            },
+            SearchResult {
+                id: id(2),
+                method: Method::Get,
+                path: "/b".into(),
+                summary: String::new(),
+                status: Status::Draft,
+                tags: vec![],
+                similarity: None,
+            },
         ];
         let semantic = vec![(id(2), 0.9), (id(3), 0.8)];
         let merged = rrf_merge(exact, semantic, 10);
@@ -145,7 +146,15 @@ mod tests {
     #[test]
     fn rrf_respects_limit() {
         let exact: Vec<SearchResult> = (0..20)
-            .map(|i| SearchResult { id: id(i), method: Method::Get, path: format!("/{i}"), summary: String::new(), status: Status::Draft, tags: vec![], similarity: None })
+            .map(|i| SearchResult {
+                id: id(i),
+                method: Method::Get,
+                path: format!("/{i}"),
+                summary: String::new(),
+                status: Status::Draft,
+                tags: vec![],
+                similarity: None,
+            })
             .collect();
         let merged = rrf_merge(exact, vec![], 5);
         assert_eq!(merged.len(), 5);

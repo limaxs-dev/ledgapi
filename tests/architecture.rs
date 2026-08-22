@@ -7,11 +7,13 @@ use std::path::Path;
 #[test]
 fn domain_does_not_import_infra_or_mcp_or_web() {
     let src = read_src("src/domain");
-    for forbidden in ["infra::", "crate::infra", "crate::mcp", "crate::web", "rusqlite", "fastembed"] {
+    for forbidden in
+        ["infra::", "crate::infra", "crate::mcp", "crate::web", "rusqlite", "fastembed"]
+    {
         assert!(
-                !src.contains(&format!("use {forbidden}")),
-                "domain must not depend on {forbidden}"
-            );
+            !src.contains(&format!("use {forbidden}")),
+            "domain must not depend on {forbidden}"
+        );
     }
 }
 

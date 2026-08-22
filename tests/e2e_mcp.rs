@@ -10,12 +10,7 @@ async fn initialize_advertises_protocol_and_capabilities() {
     // Insert a token so the bearer-auth middleware lets the request through.
     let plaintext = token::generate();
     let hash = token::sha256_hex(&plaintext);
-    app.state
-        .repos
-        .tokens
-        .insert(&hash, Some("test"))
-        .await
-        .unwrap();
+    app.state.repos.tokens.insert(&hash, Some("test")).await.unwrap();
     let req = TestApp::mcp_request("initialize", json!({}));
     let req = with_bearer(req, &plaintext);
     let resp = app.oneshot(req).await;
@@ -31,12 +26,7 @@ async fn tools_list_advertises_all_10_tools() {
     let app = TestApp::new();
     let plaintext = token::generate();
     let hash = token::sha256_hex(&plaintext);
-    app.state
-        .repos
-        .tokens
-        .insert(&hash, Some("test"))
-        .await
-        .unwrap();
+    app.state.repos.tokens.insert(&hash, Some("test")).await.unwrap();
     let req = TestApp::mcp_request("tools/list", json!({}));
     let req = with_bearer(req, &plaintext);
     let resp = app.oneshot(req).await;
@@ -62,11 +52,13 @@ async fn tools_list_advertises_all_10_tools() {
 }
 
 /// Add an `Authorization: Bearer <plaintext>` header to the request.
-fn with_bearer(req: axum::http::Request<axum::body::Body>, plaintext: &str) -> axum::http::Request<axum::body::Body> {
+fn with_bearer(
+    req: axum::http::Request<axum::body::Body>,
+    plaintext: &str,
+) -> axum::http::Request<axum::body::Body> {
     use axum::http::header::AUTHORIZATION;
     let mut req = req;
-    req.headers_mut()
-        .insert(AUTHORIZATION, format!("Bearer {plaintext}").parse().unwrap());
+    req.headers_mut().insert(AUTHORIZATION, format!("Bearer {plaintext}").parse().unwrap());
     req
 }
 

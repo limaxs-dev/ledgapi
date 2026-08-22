@@ -27,30 +27,22 @@ pub async fn execute(
     }
 
     let group_id = match patch.group_name.as_deref() {
-        Some(name) if !name.is_empty() => {
-            Some(
-                repos
-                    .groups()
-                    .resolve(
-                        find_project_id(repos, &project_slug).await?,
-                        &crate::domain::group::GroupRef {
-                            name: name.to_owned(),
-                            description: None,
-                        },
-                    )
-                    .await?
-                    .id,
-            )
-        }
+        Some(name) if !name.is_empty() => Some(
+            repos
+                .groups()
+                .resolve(
+                    find_project_id(repos, &project_slug).await?,
+                    &crate::domain::group::GroupRef { name: name.to_owned(), description: None },
+                )
+                .await?
+                .id,
+        ),
         _ => None,
     };
 
     let project_id = find_project_id(repos, &project_slug).await?;
 
-    let updated = repos
-        .contracts()
-        .update(project_id, contract_id, &patch, group_id)
-        .await?;
+    let updated = repos.contracts().update(project_id, contract_id, &patch, group_id).await?;
 
     if patch.affects_embedding() {
         let text = format!(
@@ -62,10 +54,8 @@ pub async fn execute(
         );
         match embedder.embed(&text).await {
             Ok(emb) => {
-                if let Err(e) = repos
-                    .embeddings()
-                    .upsert(updated.id, updated.project_id, &emb)
-                    .await
+                if let Err(e) =
+                    repos.embeddings().upsert(updated.id, updated.project_id, &emb).await
                 {
                     tracing::warn!(error = %e, contract_id = %updated.id, "failed to upsert embedding after update");
                 }
@@ -126,7 +116,9 @@ mod tests {
             &CFG,
             p.slug.clone(),
             crate::domain::use_cases::create_contract::ContractCreate_for_tests(),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         (repos, Arc::new(StubEmbedder::new()), p.slug, created.contract_id)
     }
 
@@ -138,7 +130,8 @@ mod tests {
     #[tokio::test]
     async fn update_empty_patch_errors() {
         let (repos, emb, slug, cid) = boot().await;
-        let err = execute(&repos, emb, &CFG, slug, cid, ContractUpdate::default()).await.unwrap_err();
+        let err =
+            execute(&repos, emb, &CFG, slug, cid, ContractUpdate::default()).await.unwrap_err();
         assert!(matches!(err, DomainError::Validation { .. }));
     }
 

@@ -44,9 +44,7 @@ impl FastembedEmbedder {
                 .with_show_download_progress(false),
         )?;
 
-        Ok(Self {
-            model: Arc::new(StdMutex::new(model)),
-        })
+        Ok(Self { model: Arc::new(StdMutex::new(model)) })
     }
 }
 
@@ -60,14 +58,11 @@ impl Embedder for FastembedEmbedder {
         let model = Arc::clone(&self.model);
         let text = text.to_owned();
         tokio::task::spawn_blocking(move || {
-            let mut m = model
-                .lock()
-                .map_err(|e| DomainError::Internal(format!("lock: {e}")))?;
+            let mut m = model.lock().map_err(|e| DomainError::Internal(format!("lock: {e}")))?;
             let mut out = m
                 .embed(vec![text.as_str()], None)
                 .map_err(|e| DomainError::Internal(format!("fastembed: {e}")))?;
-            out.pop()
-                .ok_or_else(|| DomainError::Internal("empty embedding result".to_owned()))
+            out.pop().ok_or_else(|| DomainError::Internal("empty embedding result".to_owned()))
         })
         .await
         .map_err(|e| DomainError::Internal(format!("join: {e}")))?
@@ -108,11 +103,7 @@ impl Embedder for StubEmbedder {
             .collect();
         // L2-normalize so cosine similarity behaves predictably.
         let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-        if norm > 0.0 {
-            Ok(v.into_iter().map(|x| x / norm).collect())
-        } else {
-            Ok(v)
-        }
+        if norm > 0.0 { Ok(v.into_iter().map(|x| x / norm).collect()) } else { Ok(v) }
     }
 }
 

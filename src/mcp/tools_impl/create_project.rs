@@ -46,11 +46,7 @@ impl Tool for CreateProjectTool {
         let slug = ProjectSlug::parse(&p.slug)?;
         let out = crate::domain::use_cases::manage_project::create(
             ctx.state.repos(),
-            ProjectCreate {
-                slug,
-                name: p.name,
-                description: p.description,
-            },
+            ProjectCreate { slug, name: p.name, description: p.description },
         )
         .await?;
         Ok(json!({ "status": "created", "project_slug": out.slug }))

@@ -26,7 +26,13 @@ impl ProjectRepo for SqliteProjectRepo {
                 c.execute(
                     "INSERT INTO projects (id, slug, name, description, created_at)
                      VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![id.to_string(), input.slug.as_str(), input.name, input.description, now],
+                    params![
+                        id.to_string(),
+                        input.slug.as_str(),
+                        input.name,
+                        input.description,
+                        now
+                    ],
                 )
                 .map_err(|e| match e {
                     rusqlite::Error::SqliteFailure(err, _)
@@ -44,7 +50,8 @@ impl ProjectRepo for SqliteProjectRepo {
                     slug: input.slug,
                     name: input.name,
                     description: input.description,
-                    created_at: OffsetDateTime::from_unix_timestamp(now).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                    created_at: OffsetDateTime::from_unix_timestamp(now)
+                        .unwrap_or(OffsetDateTime::UNIX_EPOCH),
                 })
             })
         })
@@ -62,18 +69,27 @@ impl ProjectRepo for SqliteProjectRepo {
                         "SELECT id, slug, name, description, created_at
                          FROM projects WHERE slug = ?1",
                         [slug.as_str()],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-                                r.get::<_, Option<String>>(3)?, r.get::<_, i64>(4)?)),
+                        |r| {
+                            Ok((
+                                r.get::<_, String>(0)?,
+                                r.get::<_, String>(1)?,
+                                r.get::<_, String>(2)?,
+                                r.get::<_, Option<String>>(3)?,
+                                r.get::<_, i64>(4)?,
+                            ))
+                        },
                     )
                     .optional()
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 row.map(|(id, slug, name, description, ts)| -> Result<Project, DomainError> {
                     Ok(Project {
                         id: parse_id(&id)?,
-                        slug: ProjectSlug::parse(&slug).map_err(|e| DomainError::Internal(e.to_string()))?,
+                        slug: ProjectSlug::parse(&slug)
+                            .map_err(|e| DomainError::Internal(e.to_string()))?,
                         name,
                         description,
-                        created_at: OffsetDateTime::from_unix_timestamp(ts).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                        created_at: OffsetDateTime::from_unix_timestamp(ts)
+                            .unwrap_or(OffsetDateTime::UNIX_EPOCH),
                     })
                 })
                 .transpose()
@@ -92,18 +108,27 @@ impl ProjectRepo for SqliteProjectRepo {
                         "SELECT id, slug, name, description, created_at
                          FROM projects WHERE id = ?1",
                         [id.to_string()],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-                                r.get::<_, Option<String>>(3)?, r.get::<_, i64>(4)?)),
+                        |r| {
+                            Ok((
+                                r.get::<_, String>(0)?,
+                                r.get::<_, String>(1)?,
+                                r.get::<_, String>(2)?,
+                                r.get::<_, Option<String>>(3)?,
+                                r.get::<_, i64>(4)?,
+                            ))
+                        },
                     )
                     .optional()
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 row.map(|(id, slug, name, description, ts)| -> Result<Project, DomainError> {
                     Ok(Project {
                         id: parse_id(&id)?,
-                        slug: ProjectSlug::parse(&slug).map_err(|e| DomainError::Internal(e.to_string()))?,
+                        slug: ProjectSlug::parse(&slug)
+                            .map_err(|e| DomainError::Internal(e.to_string()))?,
                         name,
                         description,
-                        created_at: OffsetDateTime::from_unix_timestamp(ts).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                        created_at: OffsetDateTime::from_unix_timestamp(ts)
+                            .unwrap_or(OffsetDateTime::UNIX_EPOCH),
                     })
                 })
                 .transpose()
@@ -136,9 +161,11 @@ impl ProjectRepo for SqliteProjectRepo {
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 let mut out = Vec::new();
                 for row in rows {
-                    let (slug, name, count) = row.map_err(|e| DomainError::Internal(e.to_string()))?;
+                    let (slug, name, count) =
+                        row.map_err(|e| DomainError::Internal(e.to_string()))?;
                     out.push(ProjectSummary {
-                        slug: ProjectSlug::parse(&slug).map_err(|e| DomainError::Internal(e.to_string()))?,
+                        slug: ProjectSlug::parse(&slug)
+                            .map_err(|e| DomainError::Internal(e.to_string()))?,
                         name,
                         contract_count: count,
                     });

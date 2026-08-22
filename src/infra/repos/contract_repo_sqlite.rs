@@ -6,9 +6,7 @@ use crate::domain::contract::{
     normalize_path,
 };
 use crate::domain::errors::DomainError;
-use crate::domain::ports::{
-    ContractRepo, ListContractsFilter, SearchResult,
-};
+use crate::domain::ports::{ContractRepo, ListContractsFilter, SearchResult};
 use crate::infra::db::Db;
 use crate::infra::repos::project_repo_sqlite::parse_id;
 use async_trait::async_trait;
@@ -28,7 +26,9 @@ fn json_to_text(v: Option<&serde_json::Value>) -> Option<String> {
 fn parse_json_opt(s: Option<String>) -> Result<Option<serde_json::Value>, DomainError> {
     match s {
         Some(s) if s.is_empty() => Ok(None),
-        Some(s) => serde_json::from_str(&s).map(Some).map_err(|e| DomainError::Internal(e.to_string())),
+        Some(s) => {
+            serde_json::from_str(&s).map(Some).map_err(|e| DomainError::Internal(e.to_string()))
+        }
         None => Ok(None),
     }
 }
@@ -46,14 +46,12 @@ fn parse_status(s: &str) -> Result<Status, DomainError> {
 }
 
 fn parse_auth_type_opt(s: Option<String>) -> Result<Option<AuthType>, DomainError> {
-    s.map(|s| {
-        match s.as_str() {
-            "none" => Ok(AuthType::None),
-            "bearer" => Ok(AuthType::Bearer),
-            "api_key" => Ok(AuthType::ApiKey),
-            "basic" => Ok(AuthType::Basic),
-            other => Err(DomainError::Internal(format!("bad auth_type: {other}"))),
-        }
+    s.map(|s| match s.as_str() {
+        "none" => Ok(AuthType::None),
+        "bearer" => Ok(AuthType::Bearer),
+        "api_key" => Ok(AuthType::ApiKey),
+        "basic" => Ok(AuthType::Basic),
+        other => Err(DomainError::Internal(format!("bad auth_type: {other}"))),
     })
     .transpose()
 }
@@ -126,7 +124,9 @@ impl ContractRepo for SqliteContractRepo {
                 })?;
 
                 Ok(Contract {
-                    id, project_id, group_id,
+                    id,
+                    project_id,
+                    group_id,
                     method: input.method,
                     path,
                     summary: input.summary,
@@ -140,8 +140,10 @@ impl ContractRepo for SqliteContractRepo {
                     auth_type: auth,
                     status,
                     tags,
-                    created_at: OffsetDateTime::from_unix_timestamp(now).unwrap_or(OffsetDateTime::UNIX_EPOCH),
-                    updated_at: OffsetDateTime::from_unix_timestamp(now).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                    created_at: OffsetDateTime::from_unix_timestamp(now)
+                        .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                    updated_at: OffsetDateTime::from_unix_timestamp(now)
+                        .unwrap_or(OffsetDateTime::UNIX_EPOCH),
                 })
             })
         })
@@ -149,11 +151,7 @@ impl ContractRepo for SqliteContractRepo {
         .map_err(|e| DomainError::Internal(format!("join: {e}")))?
     }
 
-    async fn find_by_id(
-        &self,
-        project_id: Id,
-        contract_id: Id,
-    ) -> Result<Contract, DomainError> {
+    async fn find_by_id(&self, project_id: Id, contract_id: Id) -> Result<Contract, DomainError> {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
@@ -243,10 +241,12 @@ impl ContractRepo for SqliteContractRepo {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
-                let n = c.execute(
-                    "DELETE FROM contracts WHERE id=?1 AND project_id=?2",
-                    params![contract_id.to_string(), project_id.to_string()],
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
+                let n = c
+                    .execute(
+                        "DELETE FROM contracts WHERE id=?1 AND project_id=?2",
+                        params![contract_id.to_string(), project_id.to_string()],
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
                 if n == 0 {
                     return Err(DomainError::NotFound { resource: "contract" });
                 }
@@ -270,7 +270,9 @@ impl ContractRepo for SqliteContractRepo {
                     "SELECT id, method, path, summary, status, tags
                      FROM contracts WHERE project_id = ?1",
                 );
-                if filter.group_id.is_some() { sql.push_str(" AND group_id = ?2"); }
+                if filter.group_id.is_some() {
+                    sql.push_str(" AND group_id = ?2");
+                }
                 let status_idx = if filter.group_id.is_some() { 3 } else { 2 };
                 if filter.status.is_some() {
                     use std::fmt::Write as _;
@@ -285,18 +287,27 @@ impl ContractRepo for SqliteContractRepo {
                 let mut stmt = c.prepare(&sql).map_err(|e| DomainError::Internal(e.to_string()))?;
                 let rows = if let Some(g) = filter.group_id {
                     if let Some(s) = filter.status {
-                        stmt.query_map(params![project_id.to_string(), g.to_string(), s.as_str()], row_to_summary)
+                        stmt.query_map(
+                            params![project_id.to_string(), g.to_string(), s.as_str()],
+                            row_to_summary,
+                        )
                     } else {
-                        stmt.query_map(params![project_id.to_string(), g.to_string()], row_to_summary)
+                        stmt.query_map(
+                            params![project_id.to_string(), g.to_string()],
+                            row_to_summary,
+                        )
                     }
                 } else if let Some(s) = filter.status {
                     stmt.query_map(params![project_id.to_string(), s.as_str()], row_to_summary)
                 } else {
                     stmt.query_map(params![project_id.to_string()], row_to_summary)
-                }.map_err(|e| DomainError::Internal(e.to_string()))?;
+                }
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
 
                 let mut out = Vec::new();
-                for r in rows { out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?); }
+                for r in rows {
+                    out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?);
+                }
                 Ok::<_, DomainError>(out)
             })
         })
@@ -325,33 +336,35 @@ impl ContractRepo for SqliteContractRepo {
                      LIMIT {limit}",
                 );
                 let mut stmt = c.prepare(&sql).map_err(|e| DomainError::Internal(e.to_string()))?;
-                let rows = stmt.query_map(
-                    params![
-                        project_id.to_string(),
-                        group_id.map(|g| g.to_string()),
-                        q,
-                        query
-                    ],
-                    |r| -> rusqlite::Result<SearchResult> {
-                        let id: String = r.get(0)?;
-                        let method: String = r.get(1)?;
-                        let path: String = r.get(2)?;
-                        let summary: String = r.get(3)?;
-                        let status: String = r.get(4)?;
-                        let tags: String = r.get(5)?;
-                        Ok(SearchResult {
-                            id: parse_id(&id).map_err(|_| rusqlite::Error::InvalidQuery)?,
-                            method: parse_method(&method).map_err(|_| rusqlite::Error::InvalidQuery)?,
-                            path,
-                            summary,
-                            status: parse_status(&status).map_err(|_| rusqlite::Error::InvalidQuery)?,
-                            tags: parse_tags(tags).map_err(|_| rusqlite::Error::InvalidQuery)?,
-                            similarity: None,
-                        })
-                    },
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
+                let rows = stmt
+                    .query_map(
+                        params![project_id.to_string(), group_id.map(|g| g.to_string()), q, query],
+                        |r| -> rusqlite::Result<SearchResult> {
+                            let id: String = r.get(0)?;
+                            let method: String = r.get(1)?;
+                            let path: String = r.get(2)?;
+                            let summary: String = r.get(3)?;
+                            let status: String = r.get(4)?;
+                            let tags: String = r.get(5)?;
+                            Ok(SearchResult {
+                                id: parse_id(&id).map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                method: parse_method(&method)
+                                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                path,
+                                summary,
+                                status: parse_status(&status)
+                                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                tags: parse_tags(tags)
+                                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                similarity: None,
+                            })
+                        },
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
                 let mut out = Vec::new();
-                for r in rows { out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?); }
+                for r in rows {
+                    out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?);
+                }
                 Ok::<_, DomainError>(out)
             })
         })
@@ -375,8 +388,9 @@ impl ContractRepo for SqliteContractRepo {
                 // the WHERE clause (or a literal LIMIT). Using a bound
                 // `LIMIT ?` is rejected with "A LIMIT or 'k = ?' constraint
                 // is required on vec0 knn queries."
-                let mut stmt = c.prepare(
-                    "SELECT ce.contract_id, ce.distance
+                let mut stmt = c
+                    .prepare(
+                        "SELECT ce.contract_id, ce.distance
                        FROM contract_embeddings ce
                        JOIN contracts c ON c.id = ce.contract_id
                       WHERE ce.embedding MATCH ?1
@@ -384,17 +398,25 @@ impl ContractRepo for SqliteContractRepo {
                         AND c.project_id = ?2
                         AND (?3 IS NULL OR c.group_id = ?3)
                       ORDER BY ce.distance",
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
-                let rows = stmt.query_map(
-                    params![bytes, project_id.to_string(), group_id.map(|g| g.to_string()), k],
-                    |r| -> rusqlite::Result<(Id, f32)> {
-                        let id: String = r.get(0)?;
-                        let distance: f32 = r.get(1)?;
-                        Ok((parse_id(&id).map_err(|_| rusqlite::Error::InvalidQuery)?, 1.0 - distance))
-                    },
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                let rows = stmt
+                    .query_map(
+                        params![bytes, project_id.to_string(), group_id.map(|g| g.to_string()), k],
+                        |r| -> rusqlite::Result<(Id, f32)> {
+                            let id: String = r.get(0)?;
+                            let distance: f32 = r.get(1)?;
+                            Ok((
+                                parse_id(&id).map_err(|_| rusqlite::Error::InvalidQuery)?,
+                                1.0 - distance,
+                            ))
+                        },
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
                 let mut out = Vec::new();
-                for r in rows { out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?); }
+                for r in rows {
+                    out.push(r.map_err(|e| DomainError::Internal(e.to_string()))?);
+                }
                 Ok::<_, DomainError>(out)
             })
         })
@@ -437,38 +459,43 @@ fn load_contract(
     project_id: Id,
     contract_id: Id,
 ) -> Result<Option<Contract>, DomainError> {
-    let row = c.query_row(
-        "SELECT id, project_id, group_id, method, path, summary, description,
+    let row = c
+        .query_row(
+            "SELECT id, project_id, group_id, method, path, summary, description,
                 request_headers, request_params, request_body_schema, request_example,
                 response_schema, response_example, auth_type, status, tags,
                 created_at, updated_at
          FROM contracts WHERE id = ?1 AND project_id = ?2",
-        params![contract_id.to_string(), project_id.to_string()],
-        |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, Option<String>>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, String>(5)?,
-                r.get::<_, Option<String>>(6)?,
-                r.get::<_, Option<String>>(7)?,
-                r.get::<_, Option<String>>(8)?,
-                r.get::<_, Option<String>>(9)?,
-                r.get::<_, Option<String>>(10)?,
-                r.get::<_, String>(11)?,
-                r.get::<_, Option<String>>(12)?,
-                r.get::<_, Option<String>>(13)?,
-                r.get::<_, String>(14)?,
-                r.get::<_, String>(15)?,
-                r.get::<_, i64>(16)?,
-                r.get::<_, i64>(17)?,
-            ))
-        },
-    ).optional().map_err(|e| DomainError::Internal(e.to_string()))?;
+            params![contract_id.to_string(), project_id.to_string()],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
+                    r.get::<_, Option<String>>(6)?,
+                    r.get::<_, Option<String>>(7)?,
+                    r.get::<_, Option<String>>(8)?,
+                    r.get::<_, Option<String>>(9)?,
+                    r.get::<_, Option<String>>(10)?,
+                    r.get::<_, String>(11)?,
+                    r.get::<_, Option<String>>(12)?,
+                    r.get::<_, Option<String>>(13)?,
+                    r.get::<_, String>(14)?,
+                    r.get::<_, String>(15)?,
+                    r.get::<_, i64>(16)?,
+                    r.get::<_, i64>(17)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-    let Some(row) = row else { return Ok(None); };
+    let Some(row) = row else {
+        return Ok(None);
+    };
 
     Ok(Some(Contract {
         id: parse_id(&row.0)?,
@@ -490,8 +517,10 @@ fn load_contract(
         auth_type: parse_auth_type_opt(row.13)?,
         status: parse_status(&row.14)?,
         tags: parse_tags(row.15)?,
-        created_at: OffsetDateTime::from_unix_timestamp(row.16).unwrap_or(OffsetDateTime::UNIX_EPOCH),
-        updated_at: OffsetDateTime::from_unix_timestamp(row.17).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+        created_at: OffsetDateTime::from_unix_timestamp(row.16)
+            .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+        updated_at: OffsetDateTime::from_unix_timestamp(row.17)
+            .unwrap_or(OffsetDateTime::UNIX_EPOCH),
     }))
 }
 
@@ -507,11 +536,14 @@ mod tests {
     async fn setup() -> (crate::infra::db::Db, Id) {
         let db = open_memory().unwrap();
         let proj = SqliteProjectRepo { db: db.clone() };
-        let p = proj.create(&ProjectCreate {
-            slug: ProjectSlug::parse("api").unwrap(),
-            name: "API".to_owned(),
-            description: None,
-        }).await.unwrap();
+        let p = proj
+            .create(&ProjectCreate {
+                slug: ProjectSlug::parse("api").unwrap(),
+                name: "API".to_owned(),
+                description: None,
+            })
+            .await
+            .unwrap();
         (db, p.id)
     }
 
@@ -592,11 +624,17 @@ mod tests {
         let mut c2 = make_create("/b", "B");
         c2.status = Some("stable".to_owned());
         repo.create(pid, None, &c2).await.unwrap();
-        let list = repo.list(pid, &ListContractsFilter {
-            status: Some(Status::Stable),
-            limit: 100,
-            ..Default::default()
-        }).await.unwrap();
+        let list = repo
+            .list(
+                pid,
+                &ListContractsFilter {
+                    status: Some(Status::Stable),
+                    limit: 100,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].path, "/b");
     }

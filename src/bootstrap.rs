@@ -25,9 +25,10 @@ pub async fn run() -> anyhow::Result<()> {
     // `Db::into_token_repo` adapter that the brief sketches.)
     let token_repo: Arc<SqliteTokenRepo> = Arc::new(SqliteTokenRepo { db: db.clone() });
 
-    let (plaintext, was_first) = crate::domain::use_cases::bootstrap_token::ensure(token_repo.as_ref())
-        .await
-        .map_err(|e| anyhow!("bootstrap token: {e}"))?;
+    let (plaintext, was_first) =
+        crate::domain::use_cases::bootstrap_token::ensure(token_repo.as_ref())
+            .await
+            .map_err(|e| anyhow!("bootstrap token: {e}"))?;
 
     if was_first {
         tracing::info!("first run — bootstrap token generated");
@@ -64,10 +65,13 @@ pub async fn run() -> anyhow::Result<()> {
 /// token is cancelled. The cancel token also wins on graceful shutdown
 /// timeout via the caller's `shutdown_timeout` (currently honoured by
 /// axum's `with_graceful_shutdown`).
-pub async fn serve(state: AppState, bind: String, _shutdown_timeout: Duration) -> anyhow::Result<()> {
-    let listener = tokio::net::TcpListener::bind(&bind)
-        .await
-        .with_context(|| format!("bind {bind}"))?;
+pub async fn serve(
+    state: AppState,
+    bind: String,
+    _shutdown_timeout: Duration,
+) -> anyhow::Result<()> {
+    let listener =
+        tokio::net::TcpListener::bind(&bind).await.with_context(|| format!("bind {bind}"))?;
 
     let shutdown = CancellationToken::new();
     spawn_signal_handler(shutdown.clone());
@@ -85,7 +89,8 @@ pub async fn serve(state: AppState, bind: String, _shutdown_timeout: Duration) -
 fn spawn_signal_handler(token: CancellationToken) {
     tokio::spawn(async move {
         let ctrl_c = tokio::signal::ctrl_c();
-        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
+        let mut sigterm =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
         tokio::select! {
             res = ctrl_c => { let _ = res; },
             () = async {

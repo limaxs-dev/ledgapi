@@ -18,15 +18,10 @@ pub async fn yaml(Extension(state): Extension<AppState>, Path(slug): Path<String
     match crate::domain::use_cases::export_openapi::execute(state.repos(), slug.clone()).await {
         Ok(r) => {
             let mut headers = HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("application/yaml"),
-            );
+            headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/yaml"));
             let disposition = format!("attachment; filename=\"{slug}-openapi.yml\"");
-            headers.insert(
-                header::CONTENT_DISPOSITION,
-                HeaderValue::from_str(&disposition).unwrap(),
-            );
+            headers
+                .insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&disposition).unwrap());
             (headers, r.yaml).into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "project not found").into_response(),

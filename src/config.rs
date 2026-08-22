@@ -109,11 +109,7 @@ impl AppConfig {
             .set_default("embed.cache_dir", "/data/.cache/fastembed")?
             .set_default("log.format", "pretty")?
             .set_default("log.level", "info")?
-            .add_source(
-                Environment::with_prefix("APP")
-                    .separator("__")
-                    .try_parsing(true),
-            )
+            .add_source(Environment::with_prefix("APP").separator("__").try_parsing(true))
             .build()?;
 
         let parsed: AppConfig = cfg.try_deserialize()?;
