@@ -14,6 +14,7 @@ use crate::domain::ports::{Embedder, Repos};
 use crate::infra::repos::SqliteRepos;
 use crate::mcp::tools_impl::McpRegistry;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 /// First-run bootstrap state. Cleared by [`AppState::mark_setup_consumed`]
@@ -37,6 +38,10 @@ pub struct AppState {
     mcp: Arc<McpRegistry>,
     cfg: Arc<AppConfig>,
     embedder: Arc<dyn Embedder>,
+    /// Atomic "is the setup window still open?" toggle. Flipped by the
+    /// auth middleware on the first valid bearer token, and by the
+    /// `/setup` handler when its TTL elapses.
+    setup_active: Arc<AtomicBool>,
     setup_state: Arc<SetupState>,
 }
 
@@ -45,6 +50,13 @@ impl AppState {
     #[must_use]
     pub fn repos(&self) -> &dyn Repos {
         self.repos.as_ref()
+    }
+
+    /// Borrow the concrete [`SqliteRepos`] handle. Used by health
+    /// probes that need raw access to the underlying connection.
+    #[must_use]
+    pub fn sqlite_repos(&self) -> &crate::infra::repos::SqliteRepos {
+        &self.repos
     }
 
     /// Borrow the MCP tool registry.
@@ -73,7 +85,9 @@ impl AppState {
     }
 
     /// Mark the setup page as consumed (first valid MCP call).
-    pub fn mark_setup_consumed(&self) {}
+    pub fn mark_setup_consumed(&self) {
+        self.setup_active.store(false, Ordering::Relaxed);
+    }
 
     /// Borrow the first-run setup state.
     #[must_use]
