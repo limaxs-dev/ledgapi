@@ -5,7 +5,7 @@ use crate::domain::errors::DomainError;
 use crate::errors::AppError;
 use crate::infra::auth::token;
 use crate::state::AppState;
-use axum::extract::{Request, State};
+use axum::extract::Request;
 use axum::http::header::AUTHORIZATION;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -22,11 +22,13 @@ fn extract_bearer(req: &Request) -> Option<&str> {
 }
 
 /// axum middleware: enforces Bearer token on every request that hits
-/// the protected route.
+/// the protected route. The `AppState` is passed explicitly (since the
+/// router no longer carries state via `with_state`); see
+/// `web::router::router`.
 pub async fn bearer_auth(
-    State(state): State<AppState>,
     req: Request,
     next: Next,
+    state: AppState,
 ) -> Result<Response, AppError> {
     let token = extract_bearer(&req)
         .ok_or_else(|| AppError::from(DomainError::AuthMissing))?;

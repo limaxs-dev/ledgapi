@@ -9,14 +9,14 @@ use crate::web::templates::{
     ProjectTpl, SearchRow, SearchTpl,
 };
 use askama::Template;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use time::OffsetDateTime;
 
 /// `GET /` — list every project with its contract count.
-pub async fn dashboard(State(state): State<AppState>) -> Response {
+pub async fn dashboard(Extension(state): Extension<AppState>) -> Response {
     let list = crate::domain::use_cases::manage_project::list(state.repos())
         .await
         .unwrap_or_default();
@@ -36,7 +36,10 @@ pub async fn dashboard(State(state): State<AppState>) -> Response {
 }
 
 /// `GET /projects/{slug}` — project detail (contracts + groups + search box).
-pub async fn project(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
+pub async fn project(
+    Extension(state): Extension<AppState>,
+    Path(slug): Path<String>,
+) -> Response {
     let Ok(slug) = ProjectSlug::parse(&slug) else {
         return not_found().await;
     };
@@ -90,7 +93,7 @@ pub async fn project(State(state): State<AppState>, Path(slug): Path<String>) ->
 
 /// `GET /projects/{slug}/contracts/{id}` — contract detail.
 pub async fn contract(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((slug, id)): Path<(String, String)>,
 ) -> Response {
     let Ok(slug) = ProjectSlug::parse(&slug) else {
@@ -140,7 +143,7 @@ fn default_mode() -> String {
 
 /// `GET /projects/{slug}/search` — search a project's contracts.
 pub async fn search(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(slug): Path<String>,
     Query(q): Query<SearchQuery>,
 ) -> Response {

@@ -3,7 +3,7 @@
 
 use crate::domain::project::ProjectSlug;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{IntoResponse, Response};
@@ -11,7 +11,7 @@ use axum::response::{IntoResponse, Response};
 /// `GET /projects/{slug}/openapi.yml` — render the project's OpenAPI
 /// document and return it as a `Content-Disposition: attachment` YAML
 /// download.
-pub async fn yaml(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
+pub async fn yaml(Extension(state): Extension<AppState>, Path(slug): Path<String>) -> Response {
     let Ok(slug) = ProjectSlug::parse(&slug) else {
         return (StatusCode::NOT_FOUND, "not found").into_response();
     };

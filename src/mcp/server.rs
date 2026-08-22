@@ -7,7 +7,7 @@ use crate::domain::errors::DomainError;
 use crate::mcp::tools::ToolContext;
 use crate::state::AppState;
 use axum::Json;
-use axum::extract::{Request, State};
+use axum::extract::{Extension, Request};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -49,7 +49,7 @@ pub struct JsonRpcError {
 }
 
 /// Top-level handler. Called by the router after auth middleware.
-pub async fn handle(State(state): State<AppState>, req: Request) -> Response {
+pub async fn handle(Extension(state): Extension<AppState>, req: Request) -> Response {
     // Body parsing with explicit size limit.
     let Ok(bytes) = axum::body::to_bytes(req.into_body(), MAX_BODY_BYTES).await else {
         return respond_error(
@@ -298,7 +298,7 @@ async fn respond_bytes(_state: &AppState, body: Vec<u8>) -> Response {
 /// SSE variant. Used only when the client sends `Accept: text/event-stream`.
 #[allow(dead_code)]
 pub async fn handle_sse(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     headers: HeaderMap,
     Json(req): Json<JsonRpcRequest>,
 ) -> Response {

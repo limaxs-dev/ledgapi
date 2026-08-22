@@ -1,52 +1,41 @@
-//! `AppState` — placeholder until Task 40 (Composition).
-//!
-//! The real `AppState` is constructed in Task 40. This stub exists so
-//! that code that depends on `crate::state::AppState` (e.g. the auth
-//! middleware and the MCP dispatcher) compiles in isolation. Task 32
-//! adds the `mcp_registry()` accessor; Task 34 adds the embedder and
-//! embed-config accessors used by the write/search MCP tools.
-//!
-//! Task 37 adds the `setup`/`bootstrap_token_plaintext` accessors that
-//! the `/setup` page uses. Task 40 finalises the struct shape.
+//! `AppState` — every dependency held by the composition root and
+//! cloned (via `Arc`) into every handler.
 
 use crate::config::{AppConfig, EmbedConfig};
 use crate::domain::ports::{Embedder, Repos};
+use crate::infra::db::Db;
 use crate::infra::repos::SqliteRepos;
 use crate::mcp::tools_impl::McpRegistry;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-/// First-run bootstrap state. Cleared by [`AppState::mark_setup_consumed`]
-/// once the operator finishes setup (either by calling `/mcp` with the
-/// token or by the TTL elapsing).
+/// Setup page state. Cleared on first valid MCP call OR TTL elapse.
 #[derive(Debug)]
 pub struct SetupState {
-    /// True while setup is still pending.
     pub active: bool,
-    /// Wall-clock instant when the bootstrap window expires.
     pub expires_at: Instant,
-    /// Plaintext token; held only while `active` so the `/setup` page
-    /// can render it before the first MCP call.
     pub plaintext: Option<String>,
 }
 
-/// Shared application state. Cloned (via `Arc`s) into every handler.
+/// Shared application state. Every handler receives a clone.
+///
+/// All fields are public so `bootstrap::run` (and tests) can construct
+/// the struct directly via a literal. Handlers always go through the
+/// accessor methods.
 #[derive(Clone)]
 pub struct AppState {
-    repos: Arc<SqliteRepos>,
-    mcp: Arc<McpRegistry>,
-    cfg: Arc<AppConfig>,
-    embedder: Arc<dyn Embedder>,
-    /// Atomic "is the setup window still open?" toggle. Flipped by the
-    /// auth middleware on the first valid bearer token, and by the
-    /// `/setup` handler when its TTL elapses.
-    setup_active: Arc<AtomicBool>,
-    setup_state: Arc<SetupState>,
+    pub repos: Arc<SqliteRepos>,
+    pub embedder: Arc<dyn Embedder>,
+    pub mcp: Arc<McpRegistry>,
+    pub cfg: Arc<AppConfig>,
+    pub setup_active: Arc<AtomicBool>,
+    pub setup_state: Arc<SetupState>,
+    pub db: Db,
 }
 
 impl AppState {
-    /// Borrow the repos bundle.
+    /// Borrow the repos bundle as a trait object.
     #[must_use]
     pub fn repos(&self) -> &dyn Repos {
         self.repos.as_ref()
@@ -55,7 +44,7 @@ impl AppState {
     /// Borrow the concrete [`SqliteRepos`] handle. Used by health
     /// probes that need raw access to the underlying connection.
     #[must_use]
-    pub fn sqlite_repos(&self) -> &crate::infra::repos::SqliteRepos {
+    pub fn sqlite_repos(&self) -> &SqliteRepos {
         &self.repos
     }
 
@@ -84,11 +73,6 @@ impl AppState {
         self.embedder.clone()
     }
 
-    /// Mark the setup page as consumed (first valid MCP call).
-    pub fn mark_setup_consumed(&self) {
-        self.setup_active.store(false, Ordering::Relaxed);
-    }
-
     /// Borrow the first-run setup state.
     #[must_use]
     pub fn setup(&self) -> &SetupState {
@@ -101,23 +85,26 @@ impl AppState {
         self.setup_state.plaintext.as_deref()
     }
 
-    /// Build an [`AppState`] wired to a fresh in-memory database and a
-    /// [`StubEmbedder`](crate::infra::embeddings::fastembed_impl::StubEmbedder).
-    /// Used exclusively by integration tests under `src/web/`. Production
-    /// construction happens in `bootstrap::run` (Task 40).
-    #[must_use]
-    pub fn for_tests() -> Self {
-        use crate::infra::db::pool::open_memory;
-        use crate::infra::embeddings::fastembed_impl::StubEmbedder;
+    /// Mark the setup page as consumed (first valid MCP call).
+    pub fn mark_setup_consumed(&self) {
+        self.setup_active.store(false, Ordering::Relaxed);
+        // We can't mutate `setup_state.plaintext` through Arc, so we
+        // rely on the lazy check in setup handler.
+    }
 
-        let cfg = Arc::new(crate::config::AppConfig {
+    /// Build a state suitable for tests with `StubEmbedder` and an
+    /// in-memory DB. `plaintext_token` is the token returned by
+    /// bootstrap (for setup-page tests).
+    #[must_use]
+    pub fn for_tests(repos: SqliteRepos, embedder: Arc<dyn Embedder>) -> Self {
+        let cfg = Arc::new(AppConfig {
             server: crate::config::ServerConfig {
                 bind: "127.0.0.1:0".to_owned(),
-                shutdown_timeout: std::time::Duration::from_secs(30),
+                shutdown_timeout: Duration::from_secs(1),
             },
             database: crate::config::DatabaseConfig {
                 path: ":memory:".to_owned(),
-                busy_timeout_ms: 5000,
+                busy_timeout_ms: 1000,
             },
             embed: crate::config::EmbedConfig {
                 cache_dir: String::new(),
@@ -128,20 +115,37 @@ impl AppState {
             },
             log: crate::config::LogConfig {
                 format: crate::config::LogFormat::Pretty,
-                level: "info".to_owned(),
+                level: "warn".to_owned(),
             },
         });
+        let db = repos.db.clone();
         Self {
-            repos: Arc::new(SqliteRepos::new(open_memory().expect("open in-memory db"))),
+            repos: Arc::new(repos),
+            embedder,
             mcp: Arc::new(McpRegistry::new()),
             cfg,
-            embedder: Arc::new(StubEmbedder::new()),
             setup_active: Arc::new(AtomicBool::new(false)),
             setup_state: Arc::new(SetupState {
                 active: false,
                 expires_at: Instant::now(),
                 plaintext: None,
             }),
+            db,
         }
+    }
+
+    /// Build an [`AppState`] wired to a fresh in-memory database and a
+    /// [`StubEmbedder`](crate::infra::embeddings::fastembed_impl::StubEmbedder).
+    /// Used by `src/web/` tests that need a fully wired state without
+    /// external I/O. New code should prefer
+    /// [`AppState::for_tests`](Self::for_tests) with explicit repos.
+    #[must_use]
+    pub fn for_tests_default() -> Self {
+        use crate::infra::db::pool::open_memory;
+        use crate::infra::embeddings::fastembed_impl::StubEmbedder;
+
+        let db = open_memory().expect("open in-memory db");
+        let repos = SqliteRepos::new(db);
+        Self::for_tests(repos, Arc::new(StubEmbedder::new()))
     }
 }

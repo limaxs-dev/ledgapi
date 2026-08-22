@@ -5,13 +5,13 @@
 use crate::state::AppState;
 use crate::web::templates::SetupTpl;
 use askama::Template;
-use axum::extract::State;
+use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::time::Instant;
 
 /// Render the bootstrap page if setup is still active, else 410 Gone.
-pub async fn show(State(state): State<AppState>) -> Response {
+pub async fn show(Extension(state): Extension<AppState>) -> Response {
     let setup = state.setup();
     if !setup.active {
         return (StatusCode::GONE, "setup already completed").into_response();

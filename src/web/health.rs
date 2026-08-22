@@ -2,7 +2,7 @@
 //! `/readyz` checks DB connectivity and embedder readiness.
 
 use crate::state::AppState;
-use axum::extract::State;
+use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
@@ -12,7 +12,7 @@ pub async fn live() -> Response {
 }
 
 /// `GET /readyz` — 200 if the DB is reachable, else 503.
-pub async fn ready(State(state): State<AppState>) -> Response {
+pub async fn ready(Extension(state): Extension<AppState>) -> Response {
     let db_ok = state.sqlite_repos().db.with_conn(|c| {
         c.query_row::<i64, _, _>("SELECT 1", [], |r| r.get(0))
             .map(|_| true)
@@ -36,8 +36,8 @@ mod tests {
 
     #[tokio::test]
     async fn ready_returns_200_when_db_ok() {
-        let s = AppState::for_tests();
-        let resp = ready(State(s)).await;
+        let s = AppState::for_tests_default();
+        let resp = ready(Extension(s)).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

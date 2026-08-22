@@ -3,7 +3,13 @@
 //! The MCP route is mounted here with the bearer-auth middleware so that
 //! the public read-only routes (`/`, `/projects/{slug}`, `/search`,
 //! `/openapi.yml`, `/setup`, `/healthz`, `/readyz`) stay open while the
-//! MCP endpoint requires a token. Task 40 re-wires the final composition.
+//! MCP endpoint requires a token.
+//!
+//! The router returns `Router<()>` so that it composes with
+//! `axum::serve(listener, app.into_make_service())`. Handlers extract
+//! shared state via `Extension<AppState>` (inserted by the layer below),
+//! not `State<AppState>`. The bearer-auth middleware also receives the
+//! state via the same layer.
 
 use crate::infra::auth::middleware::bearer_auth;
 use crate::mcp::server::handle as mcp_handle;
@@ -13,14 +19,19 @@ use crate::web::health;
 use crate::web::openapi_export;
 use crate::web::setup;
 use axum::Router;
-use axum::middleware::from_fn_with_state;
+use axum::Extension;
+use axum::middleware::from_fn;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 
-/// Build the web router. The `AppState` is cloned into the bearer-auth
-/// middleware; it is then bound to the router via `with_state`.
+/// Build the web router. `state` is cloned into request extensions and
+/// into the bearer-auth middleware so that every handler (including the
+/// MCP dispatcher) can pull `AppState` via the `Extension` extractor.
+///
+/// Returns `Router<()>` so it composes with `axum::serve` directly.
 #[allow(clippy::needless_pass_by_value)]
-pub fn router(state: AppState) -> Router<AppState> {
+pub fn router(state: AppState) -> Router {
+    let state_for_bearer = state.clone();
     Router::new()
         .route("/", get(handlers::dashboard))
         .route("/projects/{slug}", get(handlers::project))
@@ -37,9 +48,12 @@ pub fn router(state: AppState) -> Router<AppState> {
         .fallback(handlers::not_found)
         .route(
             "/mcp",
-            post(mcp_handle).layer(from_fn_with_state(state.clone(), bearer_auth)),
+            post(mcp_handle)
+                .layer(from_fn(move |req, next| {
+                    bearer_auth(req, next, state_for_bearer.clone())
+                })),
         )
-        .with_state(state)
+        .layer(Extension(state))
 }
 
 /// Serve the embedded CSS as `text/css`.
