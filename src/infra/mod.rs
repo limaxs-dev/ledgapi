@@ -4,6 +4,7 @@
 //! `infra` may import `core`, `domain`, `rusqlite`, `fastembed`, and
 //! `axum` (for middleware). It must NOT import `mcp` or `web`.
 
+pub mod auth;
 pub mod db;
 pub mod embeddings;
 pub mod repos;
