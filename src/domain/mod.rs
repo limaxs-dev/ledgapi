@@ -3,10 +3,15 @@
 //! This module must NOT import `infra`, `mcp`, `web`, `axum`, `rusqlite`,
 //! or `fastembed`. Enforced by `tests/architecture.rs`.
 
+pub mod contract;
 pub mod errors;
 pub mod group;
 pub mod project;
 
+pub use contract::{
+    AuthType, Contract, ContractCreate, ContractSummary, ContractUpdate, Method, Status,
+    normalize_path,
+};
 pub use errors::DomainError;
 pub use group::{Group, GroupRef, GroupSummary};
 pub use project::{Project, ProjectCreate, ProjectSlug, ProjectSummary};
