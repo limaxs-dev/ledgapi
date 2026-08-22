@@ -70,6 +70,15 @@ pub trait ProjectRepo: Send + Sync {
 pub trait GroupRepo: Send + Sync {
     /// Find a group by `(project_id, name)` or create it if absent.
     async fn resolve(&self, project_id: Id, input: &GroupRef) -> Result<Group, DomainError>;
+    /// Look up a group by `(project_id, name)` without creating. Returns
+    /// `None` if the group does not exist. Use this for read-side
+    /// filters (`list_contracts`, `search_contract`) where side effects
+    /// would be surprising.
+    async fn find_by_name(
+        &self,
+        project_id: Id,
+        name: &str,
+    ) -> Result<Option<Group>, DomainError>;
     async fn list_with_counts(&self, project_id: Id) -> Result<Vec<GroupSummary>, DomainError>;
 }
 

@@ -20,8 +20,15 @@ pub async fn yaml(Extension(state): Extension<AppState>, Path(slug): Path<String
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/yaml"));
             let disposition = format!("attachment; filename=\"{slug}-openapi.yml\"");
-            headers
-                .insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&disposition).unwrap());
+            // API-008: defensively avoid the .unwrap() panic if the
+            // header string ever contains a character HeaderValue rejects.
+            // The current slug is constrained to [a-z0-9_-] so this is
+            // unreachable in practice, but cheap insurance.
+            headers.insert(
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_str(&disposition)
+                    .unwrap_or_else(|_| HeaderValue::from_static("attachment")),
+            );
             (headers, r.yaml).into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "project not found").into_response(),

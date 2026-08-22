@@ -55,6 +55,13 @@ impl Tool for SearchContractTool {
         })?;
         let slug = ProjectSlug::parse(&p.project_slug)?;
         let mode = SearchMode::parse(&p.search_mode)?;
+        // If a group_name filter was provided, look it up without creating.
+        // Unknown group returns 404 (consistent with list_contracts).
+        // An empty-string group_name is treated as "no filter".
+        let group_filter: Option<&str> = match p.group_name.as_deref() {
+            Some(name) if !name.is_empty() => Some(name),
+            _ => None,
+        };
         let results = crate::domain::use_cases::search_contract::execute(
             ctx.state.repos(),
             ctx.state.embedder(),
@@ -62,7 +69,7 @@ impl Tool for SearchContractTool {
             slug,
             &p.query,
             mode,
-            p.group_name.as_deref(),
+            group_filter,
             p.limit,
         )
         .await?;

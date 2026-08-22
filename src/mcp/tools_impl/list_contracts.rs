@@ -58,14 +58,20 @@ impl Tool for ListContractsTool {
             })?);
         }
         if let Some(name) = &p.group_name {
-            // Resolve the group via use case (resolves-or-creates).
-            let group = crate::domain::use_cases::manage_group::resolve(
-                ctx.state.repos(),
-                ctx.project_id,
-                crate::domain::group::GroupRef { name: name.clone(), description: None },
-            )
-            .await?;
-            filter.group_id = Some(group.id);
+            if name.is_empty() {
+                // Mirror create_contract's empty-string drop: no filter applied.
+            } else {
+                // Read-side filter: look up, do NOT create. Unknown group
+                // returns 404 (consistent with the rest of the API).
+                let group = ctx
+                    .state
+                    .repos()
+                    .groups()
+                    .find_by_name(ctx.project_id, name)
+                    .await?
+                    .ok_or(DomainError::NotFound { resource: "group" })?;
+                filter.group_id = Some(group.id);
+            }
         }
         filter.limit = p.limit.unwrap_or(100).clamp(1, 500);
 

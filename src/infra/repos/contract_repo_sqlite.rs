@@ -228,7 +228,21 @@ impl ContractRepo for SqliteContractRepo {
                         merged.id.to_string(),
                         project_id.to_string(),
                     ],
-                ).map_err(|e| DomainError::Internal(e.to_string()))?;
+                )
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
+                // API-006: detect the race where the contract was deleted
+                // between load_contract and UPDATE. Returning Ok here would
+                // let the use case upsert an orphan embedding row.
+                let n = c
+                    .query_row(
+                        "SELECT COUNT(*) FROM contracts WHERE id = ?1",
+                        [merged.id.to_string()],
+                        |r| r.get::<_, i64>(0),
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                if n == 0 {
+                    return Err(DomainError::NotFound { resource: "contract" });
+                }
 
                 Ok(merged)
             })

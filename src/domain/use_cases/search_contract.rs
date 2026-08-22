@@ -31,17 +31,20 @@ pub async fn execute(
         .await?
         .ok_or(DomainError::NotFound { resource: "project" })?;
 
+    // Read-side group filter: look up the group by name, do NOT create.
+    // A typo (e.g. `group_name="Authh"`) used to silently create an
+    // empty "Authh" group via the resolve (create-or-find) port. This
+    // is a regression in the read path: a GET-style endpoint should not
+    // mutate state. (API-002 / API-003.)
     let group_id = match group_name {
-        Some(name) if !name.is_empty() => Some(
-            repos
+        Some(name) if !name.is_empty() => {
+            let group = repos
                 .groups()
-                .resolve(
-                    project.id,
-                    &crate::domain::group::GroupRef { name: name.to_owned(), description: None },
-                )
+                .find_by_name(project.id, name)
                 .await?
-                .id,
-        ),
+                .ok_or(DomainError::NotFound { resource: "group" })?;
+            Some(group.id)
+        }
         _ => None,
     };
 

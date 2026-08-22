@@ -7,6 +7,7 @@ use crate::domain::ports::GroupRepo;
 use crate::infra::db::Db;
 use crate::infra::repos::project_repo_sqlite::parse_id;
 use async_trait::async_trait;
+use rusqlite::OptionalExtension;
 use rusqlite::params;
 
 /// `groups` adapter. Implements [`GroupRepo`] against SQLite.
@@ -48,6 +49,40 @@ impl GroupRepo for SqliteGroupRepo {
                     name: input.name,
                     description: input.description,
                 })
+            })
+        })
+        .await
+        .map_err(|e| DomainError::Internal(format!("join: {e}")))?
+    }
+
+    async fn find_by_name(
+        &self,
+        project_id: Id,
+        name: &str,
+    ) -> Result<Option<Group>, DomainError> {
+        let db = self.db.clone();
+        let name = name.to_owned();
+        tokio::task::spawn_blocking(move || {
+            db.with_conn(|c| -> Result<Option<Group>, DomainError> {
+                let row = c
+                    .query_row(
+                        "SELECT id, name, description FROM groups
+                         WHERE project_id = ?1 AND name = ?2",
+                        params![project_id.to_string(), name],
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+                    )
+                    .optional()
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                let group = match row {
+                    Some((id, n, desc)) => Some(Group {
+                        id: parse_id(&id)?,
+                        project_id,
+                        name: n,
+                        description: desc,
+                    }),
+                    None => None,
+                };
+                Ok(group)
             })
         })
         .await
