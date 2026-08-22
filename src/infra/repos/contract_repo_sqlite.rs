@@ -371,15 +371,19 @@ impl ContractRepo for SqliteContractRepo {
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
                 // JOIN with contracts to filter by project_id and group_id.
+                // Note: sqlite-vec KNN requires the `k = ?` constraint in
+                // the WHERE clause (or a literal LIMIT). Using a bound
+                // `LIMIT ?` is rejected with "A LIMIT or 'k = ?' constraint
+                // is required on vec0 knn queries."
                 let mut stmt = c.prepare(
                     "SELECT ce.contract_id, ce.distance
                        FROM contract_embeddings ce
                        JOIN contracts c ON c.id = ce.contract_id
                       WHERE ce.embedding MATCH ?1
+                        AND k = ?4
                         AND c.project_id = ?2
                         AND (?3 IS NULL OR c.group_id = ?3)
-                      ORDER BY ce.distance
-                      LIMIT ?4",
+                      ORDER BY ce.distance",
                 ).map_err(|e| DomainError::Internal(e.to_string()))?;
                 let rows = stmt.query_map(
                     params![bytes, project_id.to_string(), group_id.map(|g| g.to_string()), k],
