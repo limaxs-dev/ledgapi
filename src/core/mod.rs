@@ -3,4 +3,5 @@
 //! Anything imported here must be in the workspace deps as a "core-only"
 //! dep: `serde`, `time`, `uuid`, `thiserror`.
 
+pub mod clock;
 pub mod id;
