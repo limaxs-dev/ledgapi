@@ -1,2 +1,7 @@
 {% extends "base.html" %}
-{% block content %}<h1>Setup</h1>{% endblock %}
+{% block content %}
+<h1>Setup</h1>
+<p>Your bootstrap token is:</p>
+<pre><code>{{ token }}</code></pre>
+<p>Copy this token into your MCP client config as the <code>Authorization: Bearer</code> header value. It is shown only once.</p>
+{% endblock %}
