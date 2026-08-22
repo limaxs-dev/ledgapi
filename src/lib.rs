@@ -12,6 +12,7 @@ pub mod infra;
 pub mod mcp;
 pub mod state;
 pub mod telemetry;
+pub mod web;
 
 /// Library entry point used by both the binary and integration tests.
 ///
