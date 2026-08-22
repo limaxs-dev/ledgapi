@@ -1,7 +1,6 @@
 //! Web route handlers — thin: parse, call use_case, render.
 
 use crate::core::id::Id;
-use crate::domain::errors::DomainError;
 use crate::domain::ports::ListContractsFilter;
 use crate::domain::project::ProjectSlug;
 use crate::state::AppState;
@@ -105,7 +104,7 @@ pub async fn contract(
 
     let c = match crate::domain::use_cases::create_contract::get(state.repos(), slug, id).await {
         Ok(c) => c,
-        Err(DomainError::NotFound { .. }) | Err(_) => return not_found().await,
+        Err(_) => return not_found().await,
     };
 
     let tpl = ContractTpl {

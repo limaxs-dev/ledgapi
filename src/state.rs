@@ -5,12 +5,30 @@
 //! middleware and the MCP dispatcher) compiles in isolation. Task 32
 //! adds the `mcp_registry()` accessor; Task 34 adds the embedder and
 //! embed-config accessors used by the write/search MCP tools.
+//!
+//! Task 37 adds the `setup`/`bootstrap_token_plaintext` accessors that
+//! the `/setup` page uses. Task 40 finalises the struct shape.
 
 use crate::config::{AppConfig, EmbedConfig};
 use crate::domain::ports::{Embedder, Repos};
 use crate::infra::repos::SqliteRepos;
 use crate::mcp::tools_impl::McpRegistry;
 use std::sync::Arc;
+use std::time::Instant;
+
+/// First-run bootstrap state. Cleared by [`AppState::mark_setup_consumed`]
+/// once the operator finishes setup (either by calling `/mcp` with the
+/// token or by the TTL elapsing).
+#[derive(Debug)]
+pub struct SetupState {
+    /// True while setup is still pending.
+    pub active: bool,
+    /// Wall-clock instant when the bootstrap window expires.
+    pub expires_at: Instant,
+    /// Plaintext token; held only while `active` so the `/setup` page
+    /// can render it before the first MCP call.
+    pub plaintext: Option<String>,
+}
 
 /// Shared application state. Cloned (via `Arc`s) into every handler.
 #[derive(Clone)]
@@ -19,6 +37,7 @@ pub struct AppState {
     mcp: Arc<McpRegistry>,
     cfg: Arc<AppConfig>,
     embedder: Arc<dyn Embedder>,
+    setup_state: Arc<SetupState>,
 }
 
 impl AppState {
@@ -55,4 +74,16 @@ impl AppState {
 
     /// Mark the setup page as consumed (first valid MCP call).
     pub fn mark_setup_consumed(&self) {}
+
+    /// Borrow the first-run setup state.
+    #[must_use]
+    pub fn setup(&self) -> &SetupState {
+        &self.setup_state
+    }
+
+    /// Borrow the plaintext bootstrap token if still active, else `None`.
+    #[must_use]
+    pub fn bootstrap_token_plaintext(&self) -> Option<&str> {
+        self.setup_state.plaintext.as_deref()
+    }
 }
