@@ -6,6 +6,7 @@
 pub mod contract;
 pub mod errors;
 pub mod group;
+pub mod ports;
 pub mod project;
 
 pub use contract::{
@@ -14,4 +15,8 @@ pub use contract::{
 };
 pub use errors::DomainError;
 pub use group::{Group, GroupRef, GroupSummary};
+pub use ports::{
+    ContractRepo, Embedder, EmbeddingRepo, GroupRepo, ListContractsFilter, ProjectRepo, Repos,
+    SearchMode, SearchResult, TokenRepo,
+};
 pub use project::{Project, ProjectCreate, ProjectSlug, ProjectSummary};
