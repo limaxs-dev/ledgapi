@@ -1,13 +1,15 @@
 //! Concrete tool implementations. One file per tool in submodules.
-//!
-//! Task 33 ships the 5 read-only tools. Task 34 adds the 5 write/search
-//! tools.
 
+pub mod create_contract;
 pub mod create_project;
+pub mod delete_contract;
+pub mod export_openapi;
 pub mod get_contract_by_id;
 pub mod list_contracts;
 pub mod list_groups;
 pub mod list_projects;
+pub mod search_contract;
+pub mod update_contract;
 
 use crate::mcp::tools::Tool;
 use std::collections::HashMap;
@@ -15,25 +17,29 @@ use std::sync::Arc;
 
 /// Registry of all tools advertised to MCP clients.
 ///
-/// Pre-populated by [`McpRegistry::new`] with every tool that has been
-/// implemented so far. Callers list every tool for `tools/list` and
-/// resolve a tool by name for `tools/call`.
+/// Pre-populated by [`McpRegistry::new`] with every v1 tool. Callers
+/// list every tool for `tools/list` and resolve a tool by name for
+/// `tools/call`.
 #[derive(Default)]
 pub struct McpRegistry {
     tools: HashMap<&'static str, Arc<dyn Tool>>,
 }
 
 impl McpRegistry {
-    /// Construct a registry pre-populated with every v1 read-only tool.
-    /// Task 34 extends this with the 5 write/search tools.
+    /// Construct a registry pre-populated with every v1 tool.
     #[must_use]
     pub fn new() -> Self {
         let mut r = Self::default();
         r.register(Arc::new(create_project::CreateProjectTool));
         r.register(Arc::new(list_projects::ListProjectsTool));
+        r.register(Arc::new(create_contract::CreateContractTool));
         r.register(Arc::new(get_contract_by_id::GetContractByIdTool));
+        r.register(Arc::new(update_contract::UpdateContractTool));
+        r.register(Arc::new(delete_contract::DeleteContractTool));
         r.register(Arc::new(list_groups::ListGroupsTool));
         r.register(Arc::new(list_contracts::ListContractsTool));
+        r.register(Arc::new(search_contract::SearchContractTool));
+        r.register(Arc::new(export_openapi::ExportOpenApiTool));
         r
     }
 
@@ -62,9 +68,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_registers_five_read_only_tools() {
+    fn new_registers_all_ten_tools() {
         let r = McpRegistry::new();
-        assert_eq!(r.list().len(), 5);
+        assert_eq!(r.list().len(), 10);
     }
 
     #[test]
@@ -79,8 +85,20 @@ mod tests {
     #[test]
     fn get_returns_tool_by_name() {
         let r = McpRegistry::new();
-        assert!(r.get("create_project").is_some());
-        assert!(r.get("list_projects").is_some());
+        for name in [
+            "create_project",
+            "list_projects",
+            "create_contract",
+            "get_contract_by_id",
+            "update_contract",
+            "delete_contract",
+            "list_groups",
+            "list_contracts",
+            "search_contract",
+            "export_openapi",
+        ] {
+            assert!(r.get(name).is_some(), "missing tool {name}");
+        }
         assert!(r.get("nonexistent").is_none());
     }
 }
