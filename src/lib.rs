@@ -2,9 +2,9 @@
 
 #![doc = include_str!("../README.md")]
 #![deny(clippy::correctness)]
-#![warn(clippy::pedantic)]
 
 pub mod bootstrap;
+pub mod core;
 
 /// Library entry point used by both the binary and integration tests.
 ///
