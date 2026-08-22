@@ -59,6 +59,21 @@ impl Id {
         let uuid = Uuid::parse_str(s).ok()?;
         Self::try_new_v7(uuid)
     }
+
+    /// The nil (all-zero) UUID. Used as a sentinel when a tool doesn't
+    /// resolve to a specific project (e.g. `list_projects`).
+    #[must_use]
+    pub fn nil() -> Self {
+        // `Uuid::nil()` is version 0, so we cannot use `new_v7`.
+        // Instead wrap directly and bypass the v7 check.
+        Self(Uuid::nil())
+    }
+
+    /// True if this is the nil UUID.
+    #[must_use]
+    pub fn is_nil(&self) -> bool {
+        self.0.is_nil()
+    }
 }
 
 impl Default for Id {
