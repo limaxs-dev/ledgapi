@@ -1,0 +1,19 @@
+services:
+  ledgapi:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: limaxs/ledgapi:0.1.0
+    container_name: ledgapi
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ledgapi-data:/data
+    environment:
+      APP__DATABASE__PATH: /data/ledgapi.db
+      APP__EMBED__CACHE_DIR: /data/.cache/fastembed
+      APP__LOG__FORMAT: json
+
+volumes:
+  ledgapi-data:
