@@ -8,6 +8,7 @@ pub mod errors;
 pub mod group;
 pub mod ports;
 pub mod project;
+pub mod use_cases;
 
 pub use contract::{
     AuthType, Contract, ContractCreate, ContractSummary, ContractUpdate, Method, Status,
