@@ -57,4 +57,4 @@ curl -s http://localhost:8080/.well-known/oauth-authorization-server | head
 make ci   # fmt-check + clippy + test + architecture + deny + archaven
 ```
 
-See `docs/superpowers/specs/2026-08-21-ledgapi-design.md` for the original design and `docs/superpowers/plans/2026-08-23-ledgapi-oauth-users-audit.md` for this auth rework plan.
+See `docs/superpowers/specs/2026-08-21-ledgapi-design.md` for the original design spec.
