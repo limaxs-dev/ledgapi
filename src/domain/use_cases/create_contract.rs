@@ -3,6 +3,8 @@
 
 use crate::config::EmbedConfig;
 use crate::core::id::Id;
+use crate::domain::audit::{AuditAction, AuditResource};
+use crate::domain::auth::Principal;
 use crate::domain::contract::{Contract, ContractCreate, ContractSummary, normalize_path};
 use crate::domain::errors::{DomainError, SimilarContract};
 use crate::domain::ports::{Embedder, ListContractsFilter, Repos, SearchMode, SearchResult};
@@ -15,6 +17,10 @@ pub struct CreateOutcome {
     pub status: &'static str,
     /// Id of the new (or new-but-similar) contract.
     pub contract_id: Id,
+    /// Id of the group that was implicitly created by this call, if any.
+    pub created_group_id: Option<Id>,
+    /// Project the contract belongs to.
+    pub project_id: Id,
 }
 
 /// Validate, dup-check, write. Spec §4.3.
@@ -23,7 +29,18 @@ pub async fn execute(
     embedder: Arc<dyn Embedder>,
     embed_cfg: &EmbedConfig,
     project_slug: crate::domain::project::ProjectSlug,
+    input: ContractCreate,
+) -> Result<CreateOutcome, DomainError> {
+    execute_inner(repos, embedder, embed_cfg, project_slug, input, None).await
+}
+
+async fn execute_inner(
+    repos: &dyn Repos,
+    embedder: Arc<dyn Embedder>,
+    embed_cfg: &EmbedConfig,
+    project_slug: crate::domain::project::ProjectSlug,
     mut input: ContractCreate,
+    actor: Option<&Principal>,
 ) -> Result<CreateOutcome, DomainError> {
     input.validate()?;
     input.path = normalize_path(&input.path);
@@ -34,17 +51,21 @@ pub async fn execute(
         .await?
         .ok_or(DomainError::NotFound { resource: "project" })?;
 
+    let mut created_group_id: Option<Id> = None;
     let group_id = match &input.group_name {
-        Some(name) if !name.is_empty() => Some(
-            repos
+        Some(name) if !name.is_empty() => {
+            let resolution = repos
                 .groups()
-                .resolve(
+                .resolve_with_created(
                     project.id,
                     &crate::domain::group::GroupRef { name: name.clone(), description: None },
                 )
-                .await?
-                .id,
-        ),
+                .await?;
+            if resolution.created {
+                created_group_id = Some(resolution.group.id);
+            }
+            Some(resolution.group.id)
+        }
         _ => None,
     };
 
@@ -67,7 +88,56 @@ pub async fn execute(
         tracing::warn!(error = %e, contract_id = %contract.id, "failed to upsert embedding");
     }
 
-    Ok(CreateOutcome { status: "created", contract_id: contract.id })
+    if let Some(principal) = actor {
+        crate::domain::use_cases::audit::record(
+            repos,
+            principal,
+            AuditAction::Create,
+            AuditResource::Contract,
+            Some(contract.id),
+            serde_json::json!({
+                "contract_id": contract.id,
+                "project_id": project.id,
+                "method": contract.method.as_str(),
+                "path": contract.path,
+            }),
+        )
+        .await?;
+        if let Some(group_id) = created_group_id {
+            crate::domain::use_cases::audit::record(
+                repos,
+                principal,
+                AuditAction::Create,
+                AuditResource::Group,
+                Some(group_id),
+                serde_json::json!({
+                    "group_id": group_id,
+                    "project_id": project.id,
+                    "name": input.group_name,
+                }),
+            )
+            .await?;
+        }
+    }
+
+    Ok(CreateOutcome {
+        status: "created",
+        contract_id: contract.id,
+        created_group_id,
+        project_id: project.id,
+    })
+}
+
+pub async fn execute_with_actor(
+    repos: &dyn Repos,
+    embedder: Arc<dyn Embedder>,
+    embed_cfg: &EmbedConfig,
+    principal: &Principal,
+    project_slug: crate::domain::project::ProjectSlug,
+    input: ContractCreate,
+) -> Result<CreateOutcome, DomainError> {
+    principal.require_scope("ledgapi:write")?;
+    execute_inner(repos, embedder, embed_cfg, project_slug, input, Some(principal)).await
 }
 
 pub async fn get(
@@ -133,6 +203,7 @@ pub fn ContractCreate_for_tests() -> crate::domain::contract::ContractCreate {
         request_example: None,
         response_schema: serde_json::json!({"type": "object"}),
         response_example: None,
+        examples: None,
         auth_type: None,
         status: None,
         tags: None,
@@ -187,6 +258,7 @@ mod tests {
             request_example: None,
             response_schema: serde_json::json!({"type": "object"}),
             response_example: None,
+            examples: None,
             auth_type: None,
             status: None,
             tags: None,

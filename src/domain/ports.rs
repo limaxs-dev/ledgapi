@@ -4,6 +4,10 @@
 //! adapters in `infra::repos::*` implement them against SQLite / sqlite-vec.
 
 use crate::core::id::Id;
+use crate::domain::audit::{AuditEntry, AuditEvent, AuditFilter};
+use crate::domain::auth::{
+    AuthorizationCode, OAuthClient, OAuthToken, RefreshToken, Session, User, UserCreate,
+};
 use crate::domain::contract::{
     Contract, ContractCreate, ContractSummary, ContractUpdate, Method, Status,
 };
@@ -11,6 +15,7 @@ use crate::domain::errors::DomainError;
 use crate::domain::group::{Group, GroupRef, GroupSummary};
 use crate::domain::project::{Project, ProjectCreate, ProjectSlug, ProjectSummary};
 use async_trait::async_trait;
+use time::OffsetDateTime;
 
 /// Search-mode flag for [`ContractRepo::search`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,19 +74,25 @@ pub trait ProjectRepo: Send + Sync {
 }
 
 /// Group repository.
+pub struct GroupResolution {
+    pub group: Group,
+    pub created: bool,
+}
+
 #[async_trait]
 pub trait GroupRepo: Send + Sync {
     /// Find a group by `(project_id, name)` or create it if absent.
     async fn resolve(&self, project_id: Id, input: &GroupRef) -> Result<Group, DomainError>;
+    async fn resolve_with_created(
+        &self,
+        project_id: Id,
+        input: &GroupRef,
+    ) -> Result<GroupResolution, DomainError>;
     /// Look up a group by `(project_id, name)` without creating. Returns
     /// `None` if the group does not exist. Use this for read-side
     /// filters (`list_contracts`, `search_contract`) where side effects
     /// would be surprising.
-    async fn find_by_name(
-        &self,
-        project_id: Id,
-        name: &str,
-    ) -> Result<Option<Group>, DomainError>;
+    async fn find_by_name(&self, project_id: Id, name: &str) -> Result<Option<Group>, DomainError>;
     async fn list_with_counts(&self, project_id: Id) -> Result<Vec<GroupSummary>, DomainError>;
 }
 
@@ -141,6 +152,67 @@ pub trait ContractRepo: Send + Sync {
     ) -> Result<Vec<(Id, f32)>, DomainError>;
 }
 
+#[async_trait]
+pub trait UserRepo: Send + Sync {
+    async fn find_by_id(&self, id: Id) -> Result<Option<User>, DomainError>;
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, DomainError>;
+    async fn count(&self) -> Result<i64, DomainError>;
+    async fn create(&self, input: &UserCreate) -> Result<User, DomainError>;
+    async fn update(&self, user: &User) -> Result<User, DomainError>;
+    async fn list(&self) -> Result<Vec<User>, DomainError>;
+}
+
+#[async_trait]
+pub trait SessionRepo: Send + Sync {
+    async fn create(&self, session: &Session) -> Result<(), DomainError>;
+    async fn find(
+        &self,
+        token_hash: &str,
+        now: OffsetDateTime,
+    ) -> Result<Option<Session>, DomainError>;
+    async fn revoke(&self, token_hash: &str, now: OffsetDateTime) -> Result<(), DomainError>;
+}
+
+#[async_trait]
+pub trait OAuthRepo: Send + Sync {
+    async fn register_client(&self, client: &OAuthClient) -> Result<(), DomainError>;
+    async fn find_client(&self, client_id: &str) -> Result<Option<OAuthClient>, DomainError>;
+    async fn create_authorization_code(&self, code: &AuthorizationCode) -> Result<(), DomainError>;
+    async fn consume_authorization_code(
+        &self,
+        code_hash: &str,
+        now: OffsetDateTime,
+    ) -> Result<Option<AuthorizationCode>, DomainError>;
+    async fn create_access_token(&self, token: &OAuthToken) -> Result<(), DomainError>;
+    async fn find_access_token(
+        &self,
+        token_hash: &str,
+        now: OffsetDateTime,
+    ) -> Result<Option<OAuthToken>, DomainError>;
+    async fn revoke_access_token(
+        &self,
+        token_hash: &str,
+        now: OffsetDateTime,
+    ) -> Result<(), DomainError>;
+    async fn create_refresh_token(&self, token: &RefreshToken) -> Result<(), DomainError>;
+    async fn consume_refresh_token(
+        &self,
+        token_hash: &str,
+        now: OffsetDateTime,
+    ) -> Result<Option<RefreshToken>, DomainError>;
+}
+
+#[async_trait]
+pub trait AuditRepo: Send + Sync {
+    async fn append(&self, event: &AuditEvent) -> Result<AuditEntry, DomainError>;
+    async fn list(&self, filter: &AuditFilter) -> Result<Vec<AuditEntry>, DomainError>;
+    async fn list_for_resource(
+        &self,
+        resource: crate::domain::audit::AuditResource,
+        resource_id: Id,
+    ) -> Result<Vec<AuditEntry>, DomainError>;
+}
+
 /// Embedding index (sqlite-vec virtual table).
 #[async_trait]
 pub trait EmbeddingRepo: Send + Sync {
@@ -153,17 +225,6 @@ pub trait EmbeddingRepo: Send + Sync {
     ) -> Result<(), DomainError>;
     /// Remove an embedding by contract id.
     async fn delete(&self, contract_id: Id) -> Result<(), DomainError>;
-}
-
-/// Token repository.
-#[async_trait]
-pub trait TokenRepo: Send + Sync {
-    /// True if any row exists with the given sha256 hex.
-    async fn exists(&self, hash_hex: &str) -> Result<bool, DomainError>;
-    /// Insert a new token row. `label` is for human reference only.
-    async fn insert(&self, hash_hex: &str, label: Option<&str>) -> Result<(), DomainError>;
-    /// Number of tokens in the table (used by first-run check).
-    async fn count(&self) -> Result<i64, DomainError>;
 }
 
 /// Embedder (fastembed-rs in infra, StubEmbedder in tests).
@@ -181,7 +242,10 @@ pub trait Repos: Send + Sync {
     fn groups(&self) -> &dyn GroupRepo;
     fn contracts(&self) -> &dyn ContractRepo;
     fn embeddings(&self) -> &dyn EmbeddingRepo;
-    fn tokens(&self) -> &dyn TokenRepo;
+    fn users(&self) -> &dyn UserRepo;
+    fn sessions(&self) -> &dyn SessionRepo;
+    fn oauth(&self) -> &dyn OAuthRepo;
+    fn audit(&self) -> &dyn AuditRepo;
 }
 
 #[cfg(test)]

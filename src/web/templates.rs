@@ -63,6 +63,16 @@ pub struct ContractRow {
     pub group: String,
 }
 
+/// One rendered request/response example on a contract detail page.
+#[derive(Serialize)]
+pub struct ContractExampleRow {
+    pub name: String,
+    pub kind: String,
+    pub status_code: u16,
+    pub request: String,
+    pub response: String,
+}
+
 /// Contract detail page.
 #[derive(Template, Serialize)]
 #[template(path = "contract.html")]
@@ -82,8 +92,17 @@ pub struct ContractTpl {
     pub request_example: Option<String>,
     pub response_schema: String,
     pub response_example: Option<String>,
+    pub examples: Vec<ContractExampleRow>,
+    pub audit: Vec<AuditRow>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Serialize)]
+pub struct AuditRow {
+    pub actor: String,
+    pub action: String,
+    pub created_at: String,
 }
 
 /// Search results page.
@@ -108,10 +127,52 @@ pub struct SearchRow {
     pub similarity: Option<f32>,
 }
 
-/// `/setup` page — first-run token bootstrap.
 #[derive(Template, Serialize)]
-#[template(path = "setup.html")]
-pub struct SetupTpl<'a> {
-    pub title: &'a str,
-    pub token: &'a str,
+#[template(path = "login.html")]
+pub struct LoginTpl<'a> {
+    pub next: &'a str,
+    pub error: Option<&'a str>,
+}
+
+#[derive(Template, Serialize)]
+#[template(path = "oauth_consent.html")]
+pub struct OAuthConsentTpl<'a> {
+    pub client_name: &'a str,
+    pub username: &'a str,
+    pub client_id: &'a str,
+    pub redirect_uri: &'a str,
+    pub code_challenge: &'a str,
+    pub code_challenge_method: &'a str,
+    pub scope: &'a str,
+    pub state: &'a str,
+    pub csrf: &'a str,
+}
+
+#[derive(Template, Serialize)]
+#[template(path = "admin_users.html")]
+pub struct AdminUsersTpl<'a> {
+    pub users: Vec<AdminUserRow>,
+    pub csrf: &'a str,
+    pub error: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+pub struct AdminUserRow {
+    pub username: String,
+    pub role: String,
+    pub status: String,
+}
+
+#[derive(Template, Serialize)]
+#[template(path = "audit.html")]
+pub struct AuditTpl {
+    pub entries: Vec<AuditPageRow>,
+}
+
+#[derive(Serialize)]
+pub struct AuditPageRow {
+    pub actor: String,
+    pub action: String,
+    pub resource: String,
+    pub created_at: String,
 }

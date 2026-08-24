@@ -35,6 +35,7 @@ impl Tool for DeleteContractTool {
     }
 
     async fn execute(&self, ctx: ToolContext, input: Value) -> Result<Value, DomainError> {
+        ctx.require_scope("ledgapi:write")?;
         let p: Input = serde_json::from_value(input).map_err(|e| DomainError::Validation {
             field: "args".into(),
             message: e.to_string(),
@@ -42,7 +43,13 @@ impl Tool for DeleteContractTool {
         let slug = ProjectSlug::parse(&p.project_slug)?;
         let id = crate::core::id::Id::parse(&p.contract_id)
             .ok_or(DomainError::NotFound { resource: "contract" })?;
-        crate::domain::use_cases::delete_contract::execute(ctx.state.repos(), slug, id).await?;
+        crate::domain::use_cases::delete_contract::execute_with_actor(
+            ctx.state.repos(),
+            &ctx.principal,
+            slug,
+            id,
+        )
+        .await?;
         Ok(json!({ "status": "deleted" }))
     }
 }

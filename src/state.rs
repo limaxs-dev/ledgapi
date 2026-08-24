@@ -7,16 +7,7 @@ use crate::infra::db::Db;
 use crate::infra::repos::SqliteRepos;
 use crate::mcp::tools_impl::McpRegistry;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
-
-/// Setup page state. Cleared on first valid MCP call OR TTL elapse.
-#[derive(Debug)]
-pub struct SetupState {
-    pub active: bool,
-    pub expires_at: Instant,
-    pub plaintext: Option<String>,
-}
+use std::time::Duration;
 
 /// Shared application state. Every handler receives a clone.
 ///
@@ -29,8 +20,6 @@ pub struct AppState {
     pub embedder: Arc<dyn Embedder>,
     pub mcp: Arc<McpRegistry>,
     pub cfg: Arc<AppConfig>,
-    pub setup_active: Arc<AtomicBool>,
-    pub setup_state: Arc<SetupState>,
     pub db: Db,
 }
 
@@ -73,25 +62,6 @@ impl AppState {
         self.embedder.clone()
     }
 
-    /// Borrow the first-run setup state.
-    #[must_use]
-    pub fn setup(&self) -> &SetupState {
-        &self.setup_state
-    }
-
-    /// Borrow the plaintext bootstrap token if still active, else `None`.
-    #[must_use]
-    pub fn bootstrap_token_plaintext(&self) -> Option<&str> {
-        self.setup_state.plaintext.as_deref()
-    }
-
-    /// Mark the setup page as consumed (first valid MCP call).
-    pub fn mark_setup_consumed(&self) {
-        self.setup_active.store(false, Ordering::Relaxed);
-        // We can't mutate `setup_state.plaintext` through Arc, so we
-        // rely on the lazy check in setup handler.
-    }
-
     /// Build a state suitable for tests with `StubEmbedder` and an
     /// in-memory DB. `plaintext_token` is the token returned by
     /// bootstrap (for setup-page tests).
@@ -117,21 +87,19 @@ impl AppState {
                 format: crate::config::LogFormat::Pretty,
                 level: "warn".to_owned(),
             },
+            auth: crate::config::AuthConfig {
+                initial_admin_username: None,
+                initial_admin_password: None,
+                issuer: "http://localhost:8080".to_owned(),
+                session_ttl: Duration::from_hours(1),
+                access_token_ttl: Duration::from_hours(1),
+                refresh_token_ttl: Duration::from_hours(24),
+                authorization_code_ttl: Duration::from_mins(1),
+                cookie_secure: false,
+            },
         });
         let db = repos.db.clone();
-        Self {
-            repos: Arc::new(repos),
-            embedder,
-            mcp: Arc::new(McpRegistry::new()),
-            cfg,
-            setup_active: Arc::new(AtomicBool::new(false)),
-            setup_state: Arc::new(SetupState {
-                active: false,
-                expires_at: Instant::now(),
-                plaintext: None,
-            }),
-            db,
-        }
+        Self { repos: Arc::new(repos), embedder, mcp: Arc::new(McpRegistry::new()), cfg, db }
     }
 
     /// Build an [`AppState`] wired to a fresh in-memory database and a

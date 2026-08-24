@@ -29,7 +29,8 @@ body {
     border-bottom: 1px solid var(--border);
     background: white;
 }
-.site-header .brand { font-weight: 600; text-decoration: none; color: var(--fg); }
+.site-header .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; text-decoration: none; color: var(--fg); }
+.site-header .brand-logo { height: 32px; width: auto; display: block; }
 .site-header nav a { color: var(--muted); text-decoration: none; margin-right: 1rem; }
 
 .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
@@ -87,6 +88,13 @@ code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 3px; }
 .card .path { font-family: ui-monospace, monospace; font-size: 0.95rem; }
 .card .summary { color: var(--muted); font-size: 0.9rem; }
 
+.example-card { background: white; border: 1px solid var(--border); border-radius: 4px; padding: 1rem; margin: 1rem 0; }
+.example-card h3 { margin-top: 0; }
+.example-card h4 { margin-bottom: 0.5rem; }
+.example-kind, .status-code { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 3px; border: 1px solid var(--border); }
+.example-kind-positive { color: oklch(50% 0.15 150); border-color: oklch(70% 0.10 150); }
+.example-kind-negative { color: oklch(50% 0.15 25); border-color: oklch(70% 0.10 25); }
+
 .setup-banner {
     background: oklch(95% 0.05 80);
     border: 2px solid oklch(70% 0.15 80);
@@ -104,3 +112,6 @@ code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 3px; }
     word-break: break-all;
     user-select: all;
 }
+
+.login-brand { display: flex; justify-content: center; margin-bottom: 0.5rem; }
+.login-logo { height: 64px; width: auto; display: block; }

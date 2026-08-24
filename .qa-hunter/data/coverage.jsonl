@@ -1,3 +1,24 @@
 {"segment": "security", "status": "explored", "iteration": 1, "summary": "11 traces (SQL injection, bearer auth, /setup race, path normalization, project slug, MCP dispatcher, body size, OpenAPI export, dup-key race, token storage, error leaks). 2 findings: BUG-001 medium (path validation gap in update) and OBS-002 low (plaintext retained in memory)."}
 {"segment": "edge_cases", "status": "explored", "iteration": 1, "summary": "11 findings: API-001 high (update detaches group), API-002/API-003 medium (list/search create groups on read), API-005 medium (update skips validate), API-004/API-006/API-007/API-008/API-009/API-010 low + API-011 info."}
 {"segment": "api", "status": "explored", "iteration": 1, "summary": "Same as edge_cases — API tool surface thoroughly covered."}
+{"segment": "ui_visual", "status": "explored", "iteration": 2, "summary": "10 traces (live routes, group column, semantic search cards, CSS classes, MCP<->UI integration, group filter edges, /readyz contention, Dockerfile, auth boundary, /setup lifecycle). 3 findings: UI-001 high (group column), UI-002 high (semantic search), UI-003 low (CSS)."}
+{"segment": "ui_functional", "status": "explored", "iteration": 2, "summary": "Same as ui_visual — covered auth/setup/groups/integration."}
+{"segment": "ux", "status": "explored", "iteration": 2, "summary": "10 /readyz calls under 100KB insert: 0.22-2.10ms each. No contention."}
+{"segment": "integration", "status": "explored", "iteration": 2, "summary": "MCP create/update/delete flow reflected correctly to UI. Group filter edges (exists/typo/empty) verified post-fix."}
+{"segment": "api", "status": "explored", "iteration": 3, "summary": "Confirmed by disposable localhost live probes and focused regressions; no open findings."}
+{"segment": "ui_functional", "status": "explored", "iteration": 3, "summary": "Confirmed by disposable localhost live probes and focused regressions; no open findings."}
+{"segment": "integration", "status": "explored", "iteration": 3, "summary": "Confirmed by disposable localhost live probes and focused regressions; no open findings."}
+{"segment": "edge_cases", "status": "explored", "iteration": 3, "summary": "Confirmed by disposable localhost live probes and focused regressions; no open findings."}
+{"segment": "regression", "status": "explored", "iteration": 4, "summary": "Clean regression iteration passed with no new findings."}
+{"segment": "ui_functional", "status": "explored", "iteration": 5, "summary": "Verified through Chrome DevTools Protocol and live local service; no findings."}
+{"segment": "security", "status": "explored", "iteration": 5, "summary": "Verified through Chrome DevTools Protocol and live local service; no findings."}
+{"segment": "api", "status": "explored", "iteration": 5, "summary": "Verified through Chrome DevTools Protocol and live local service; no findings."}
+{"segment": "integration", "status": "explored", "iteration": 5, "summary": "Verified through Chrome DevTools Protocol and live local service; no findings."}
+{"segment": "ui_functional", "status": "explored", "iteration": 6, "summary": "Audited through Chrome DevTools Protocol; all assertions passed and no new findings."}
+{"segment": "security", "status": "explored", "iteration": 6, "summary": "Audited through Chrome DevTools Protocol; all assertions passed and no new findings."}
+{"segment": "api", "status": "explored", "iteration": 6, "summary": "Audited through Chrome DevTools Protocol; all assertions passed and no new findings."}
+{"segment": "integration", "status": "explored", "iteration": 6, "summary": "Audited through Chrome DevTools Protocol; all assertions passed and no new findings."}
+{"segment": "ui_functional", "status": "explored", "iteration": 7, "summary": "Direct Chrome DevTools Protocol proof bundle passed UI load, MCP API, authentication, and health checks."}
+{"segment": "security", "status": "explored", "iteration": 7, "summary": "Direct Chrome DevTools Protocol proof bundle passed UI load, MCP API, authentication, and health checks."}
+{"segment": "api", "status": "explored", "iteration": 7, "summary": "Direct Chrome DevTools Protocol proof bundle passed UI load, MCP API, authentication, and health checks."}
+{"segment": "integration", "status": "explored", "iteration": 7, "summary": "Direct Chrome DevTools Protocol proof bundle passed UI load, MCP API, authentication, and health checks."}

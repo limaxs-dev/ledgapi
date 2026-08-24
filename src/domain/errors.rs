@@ -41,11 +41,35 @@ pub enum DomainError {
     #[error("similar contracts found")]
     SimilarFound { candidates: Vec<SimilarContract> },
 
-    /// 401 — bearer token missing.
-    #[error("missing bearer token")]
+    /// 401 — authentication credentials are missing or invalid.
+    #[error("authentication required")]
     AuthMissing,
 
-    /// 403 — bearer token invalid.
+    /// 403 — credentials are valid but access is not allowed.
+    #[error("forbidden: {message}")]
+    Forbidden { message: String },
+
+    /// Authentication credentials are invalid without revealing which field failed.
+    #[error("invalid username or password")]
+    InvalidCredentials,
+
+    /// The account has been disabled.
+    #[error("account is inactive")]
+    InactiveUser,
+
+    /// OAuth request validation failed.
+    #[error("invalid oauth request: {message}")]
+    OAuthInvalidRequest { message: String },
+
+    /// OAuth grant or token is invalid, expired, or already consumed.
+    #[error("invalid oauth grant")]
+    OAuthInvalidGrant,
+
+    /// OAuth PKCE verifier failed validation.
+    #[error("invalid pkce verifier")]
+    OAuthInvalidPkce,
+
+    /// 403 — legacy bearer token invalid.
     #[error("invalid bearer token")]
     AuthInvalid,
 
@@ -67,8 +91,14 @@ impl DomainError {
             Self::Validation { .. } => ApiErrorCode::ValidationFailed,
             Self::NotFound { .. } => ApiErrorCode::NotFound,
             Self::DuplicateKey { .. } => ApiErrorCode::DuplicateKey,
-            Self::AuthMissing => ApiErrorCode::Unauthorized,
-            Self::AuthInvalid => ApiErrorCode::Forbidden,
+            Self::AuthMissing | Self::InvalidCredentials | Self::OAuthInvalidGrant => {
+                ApiErrorCode::Unauthorized
+            }
+            Self::AuthInvalid
+            | Self::Forbidden { .. }
+            | Self::InactiveUser
+            | Self::OAuthInvalidRequest { .. }
+            | Self::OAuthInvalidPkce => ApiErrorCode::Forbidden,
             Self::EmbeddingUnavailable => ApiErrorCode::ServiceUnavailable,
             Self::Internal(_) | Self::SimilarFound { .. } => ApiErrorCode::InternalError,
         }
@@ -97,8 +127,14 @@ impl DomainError {
             Self::NotFound { resource } => format!("{resource} not found"),
             Self::DuplicateKey { resource, key } => format!("{resource} already exists: {key}"),
             Self::SimilarFound { .. } => "similar contracts found".to_owned(),
-            Self::AuthMissing => "missing bearer token".to_owned(),
-            Self::AuthInvalid => "invalid bearer token".to_owned(),
+            Self::AuthMissing => "authentication required".to_owned(),
+            Self::AuthInvalid => "invalid authentication".to_owned(),
+            Self::InvalidCredentials => "invalid username or password".to_owned(),
+            Self::InactiveUser => "account is inactive".to_owned(),
+            Self::Forbidden { .. } => "forbidden".to_owned(),
+            Self::OAuthInvalidRequest { .. } => "invalid oauth request".to_owned(),
+            Self::OAuthInvalidGrant => "invalid oauth grant".to_owned(),
+            Self::OAuthInvalidPkce => "invalid pkce verifier".to_owned(),
             Self::EmbeddingUnavailable => "embedding service unavailable".to_owned(),
             Self::Internal(_) => "internal error".to_owned(),
         }

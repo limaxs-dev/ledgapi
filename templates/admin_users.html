@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Users · ledgapi{% endblock %}
+{% block content %}
+<h1>Users</h1>
+<section class="card">
+    <h2>Create user</h2>
+    {% if let Some(message) = error %}<p class="error">{{ message }}</p>{% endif %}
+    <form method="post" action="/admin/users">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Username <input name="username" required></label>
+        <label>Initial password <input type="password" name="password" required></label>
+        <label>Role
+            <select name="role">
+                <option value="viewer">Viewer</option>
+                <option value="editor">Editor</option>
+                <option value="super_admin">Super admin</option>
+            </select>
+        </label>
+        <button type="submit">Create user</button>
+    </form>
+</section>
+<table>
+    <thead><tr><th>Username</th><th>Role</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for user in users %}
+        <tr><td>{{ user.username }}</td><td>{{ user.role }}</td><td>{{ user.status }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

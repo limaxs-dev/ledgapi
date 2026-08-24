@@ -1,5 +1,6 @@
 //! Tool trait + per-tool context.
 
+use crate::domain::auth::Principal;
 use crate::domain::errors::DomainError;
 use async_trait::async_trait;
 use schemars::schema::Schema;
@@ -17,6 +18,14 @@ pub struct ToolContext {
     pub project_id: crate::core::id::Id,
     /// Shared application state (repos, embedder, config).
     pub state: std::sync::Arc<crate::state::AppState>,
+    /// Authenticated user and granted OAuth scopes.
+    pub principal: Principal,
+}
+
+impl ToolContext {
+    pub fn require_scope(&self, scope: &str) -> Result<(), DomainError> {
+        self.principal.require_scope(scope)
+    }
 }
 
 /// A single MCP tool. Tools are stateless — they take input JSON, return

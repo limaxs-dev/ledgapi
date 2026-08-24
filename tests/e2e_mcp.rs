@@ -1,18 +1,13 @@
 mod common;
 use common::TestApp;
-use ledgapi::domain::ports::TokenRepo;
-use ledgapi::infra::auth::token;
 use serde_json::json;
 
 #[tokio::test]
 async fn initialize_advertises_protocol_and_capabilities() {
     let app = TestApp::new();
-    // Insert a token so the bearer-auth middleware lets the request through.
-    let plaintext = token::generate();
-    let hash = token::sha256_hex(&plaintext);
-    app.state.repos.tokens.insert(&hash, Some("test")).await.unwrap();
+    let access_token = app.seed_admin_access_token().await;
     let req = TestApp::mcp_request("initialize", json!({}));
-    let req = with_bearer(req, &plaintext);
+    let req = with_bearer(req, &access_token);
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 200);
     let bytes = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
@@ -24,11 +19,9 @@ async fn initialize_advertises_protocol_and_capabilities() {
 #[tokio::test]
 async fn tools_list_advertises_all_10_tools() {
     let app = TestApp::new();
-    let plaintext = token::generate();
-    let hash = token::sha256_hex(&plaintext);
-    app.state.repos.tokens.insert(&hash, Some("test")).await.unwrap();
+    let access_token = app.seed_admin_access_token().await;
     let req = TestApp::mcp_request("tools/list", json!({}));
-    let req = with_bearer(req, &plaintext);
+    let req = with_bearer(req, &access_token);
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 200);
     let bytes = axum::body::to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
@@ -77,4 +70,25 @@ async fn mcp_without_bearer_returns_401() {
         .unwrap();
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 401);
+}
+
+#[tokio::test]
+async fn invalid_json_rpc_envelopes_return_invalid_request() {
+    let app = TestApp::new();
+    let access_token = app.seed_admin_access_token().await;
+
+    for body in [
+        json!({"jsonrpc": "1.0", "id": 1, "method": "initialize", "params": {}}),
+        json!({"jsonrpc": "2.0", "id": 2, "params": {}}),
+    ] {
+        let req = TestApp::mcp_request("initialize", json!({}));
+        let mut req = req;
+        *req.body_mut() = axum::body::Body::from(serde_json::to_vec(&body).unwrap());
+        let req = with_bearer(req, &access_token);
+        let resp = app.oneshot(req).await;
+        assert_eq!(resp.status(), 200);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["error"]["code"], -32600);
+    }
 }

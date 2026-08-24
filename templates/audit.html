@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Audit log · ledgapi{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+{% if entries.is_empty() %}
+<p>No mutations recorded.</p>
+{% else %}
+<table>
+    <thead><tr><th>Actor</th><th>Action</th><th>Resource</th><th>Time</th></tr></thead>
+    <tbody>
+    {% for entry in entries %}
+        <tr>
+            <td>{{ entry.actor }}</td>
+            <td>{{ entry.action }}</td>
+            <td>{{ entry.resource }}</td>
+            <td>{{ entry.created_at }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -5,13 +5,13 @@ use crate::domain::ports::ListContractsFilter;
 use crate::domain::project::ProjectSlug;
 use crate::state::AppState;
 use crate::web::templates::{
-    ContractRow as CRow, ContractTpl, DashboardTpl, GroupRow, NotFoundTpl, ProjectRow as PRow,
-    ProjectTpl, SearchRow, SearchTpl,
+    AuditRow, ContractExampleRow, ContractRow as CRow, ContractTpl, DashboardTpl, GroupRow,
+    NotFoundTpl, ProjectRow as PRow, ProjectTpl, SearchRow, SearchTpl,
 };
 use askama::Template;
 use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use serde::Deserialize;
 use time::OffsetDateTime;
 
@@ -28,7 +28,7 @@ pub async fn dashboard(Extension(state): Extension<AppState>) -> Response {
         })
         .collect();
     let tpl = DashboardTpl { title: "Projects", projects: rows };
-    tpl.render().unwrap_or_default().into_response()
+    Html(tpl.render().unwrap_or_default()).into_response()
 }
 
 /// `GET /projects/{slug}` — project detail (contracts + groups + search box).
@@ -75,7 +75,7 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
         groups: group_rows,
         contracts: contract_rows,
     };
-    tpl.render().unwrap_or_default().into_response()
+    Html(tpl.render().unwrap_or_default()).into_response()
 }
 
 /// `GET /projects/{slug}/contracts/{id}` — contract detail.
@@ -95,6 +95,20 @@ pub async fn contract(
         return not_found().await;
     };
 
+    let audit = state
+        .repos()
+        .audit()
+        .list_for_resource(crate::domain::audit::AuditResource::Contract, c.id)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|entry| AuditRow {
+            actor: entry.actor_username.unwrap_or_else(|| "system".to_owned()),
+            action: entry.action.as_str().to_owned(),
+            created_at: format_dt(entry.created_at),
+        })
+        .collect();
+
     let tpl = ContractTpl {
         title: c.summary.clone(),
         id: c.id.to_string(),
@@ -111,10 +125,22 @@ pub async fn contract(
         request_example: c.request_example.map(json_pretty),
         response_schema: json_pretty(c.response_schema),
         response_example: c.response_example.map(json_pretty),
+        examples: c
+            .examples
+            .into_iter()
+            .map(|example| ContractExampleRow {
+                name: example.name,
+                kind: example.kind.as_str().to_owned(),
+                status_code: example.status_code,
+                request: json_pretty(example.request),
+                response: json_pretty(example.response),
+            })
+            .collect(),
+        audit,
         created_at: format_dt(c.created_at),
         updated_at: format_dt(c.updated_at),
     };
-    tpl.render().unwrap_or_default().into_response()
+    Html(tpl.render().unwrap_or_default()).into_response()
 }
 
 /// Query string for `GET /projects/{slug}/search`.
@@ -141,7 +167,7 @@ pub async fn search(
     let Ok(mode) = crate::domain::ports::SearchMode::parse(&q.mode) else {
         return not_found().await;
     };
-    let results = crate::domain::use_cases::search_contract::execute(
+    let results = match crate::domain::use_cases::search_contract::execute(
         state.repos(),
         state.embedder(),
         state.embed_cfg(),
@@ -152,7 +178,10 @@ pub async fn search(
         Some(20),
     )
     .await
-    .unwrap_or_default();
+    {
+        Ok(results) => results,
+        Err(error) => return crate::errors::AppError::from(error).into_response(),
+    };
 
     let rows: Vec<SearchRow> = results
         .into_iter()
@@ -173,13 +202,13 @@ pub async fn search(
         mode: &q.mode,
         results: rows,
     };
-    tpl.render().unwrap_or_default().into_response()
+    Html(tpl.render().unwrap_or_default()).into_response()
 }
 
 /// Fallback 404 handler.
 pub async fn not_found() -> Response {
     let tpl = NotFoundTpl { path: "" };
-    (StatusCode::NOT_FOUND, tpl.render().unwrap_or_default()).into_response()
+    (StatusCode::NOT_FOUND, Html(tpl.render().unwrap_or_default())).into_response()
 }
 
 /// Pretty-print a JSON value, falling back to a placeholder on error.

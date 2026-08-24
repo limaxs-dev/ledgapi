@@ -10,6 +10,8 @@
 
 use crate::config::EmbedConfig;
 use crate::core::id::Id;
+use crate::domain::audit::{AuditAction, AuditResource};
+use crate::domain::auth::Principal;
 use crate::domain::contract::{Contract, ContractCreate, ContractUpdate};
 use crate::domain::errors::DomainError;
 use crate::domain::ports::{Embedder, Repos};
@@ -18,10 +20,22 @@ use std::sync::Arc;
 pub async fn execute(
     repos: &dyn Repos,
     embedder: Arc<dyn Embedder>,
+    embed_cfg: &EmbedConfig,
+    project_slug: crate::domain::project::ProjectSlug,
+    contract_id: Id,
+    patch: ContractUpdate,
+) -> Result<Contract, DomainError> {
+    execute_inner(repos, embedder, embed_cfg, project_slug, contract_id, patch, None).await
+}
+
+async fn execute_inner(
+    repos: &dyn Repos,
+    embedder: Arc<dyn Embedder>,
     _embed_cfg: &EmbedConfig,
     project_slug: crate::domain::project::ProjectSlug,
     contract_id: Id,
     mut patch: ContractUpdate,
+    actor: Option<&Principal>,
 ) -> Result<Contract, DomainError> {
     if patch.is_empty() {
         return Err(DomainError::Validation {
@@ -29,6 +43,7 @@ pub async fn execute(
             message: "at least one field must be set".to_owned(),
         });
     }
+    patch.validate_examples()?;
     if let Some(ref mut path) = patch.path {
         *path = crate::domain::contract::normalize_path(path);
     }
@@ -39,28 +54,26 @@ pub async fn execute(
     // the patch doesn't mention group_name. Without this, a PATCH that
     // only changes summary would silently detach the contract from its
     // group (the original bug — BUG-001/API-001).
-    let current = repos
-        .contracts()
-        .find_by_id(project_id, contract_id)
-        .await?;
+    let current = repos.contracts().find_by_id(project_id, contract_id).await?;
 
     // Resolve group_id with three states:
     //   - `Some(s)` with `!s.is_empty()` → resolve to that group (create if missing)
     //   - `Some("")`                     → explicit detach (set to None)
     //   - `None`                         → preserve current.group_id
+    let mut created_group: Option<crate::domain::group::Group> = None;
     let group_id: Option<Id> =
         if let Some(name) = patch.group_name.as_deref().filter(|n| !n.is_empty()) {
-            let group = repos
+            let resolution = repos
                 .groups()
-                .resolve(
+                .resolve_with_created(
                     project_id,
-                    &crate::domain::group::GroupRef {
-                        name: name.to_owned(),
-                        description: None,
-                    },
+                    &crate::domain::group::GroupRef { name: name.to_owned(), description: None },
                 )
                 .await?;
-            Some(group.id)
+            if resolution.created {
+                created_group = Some(resolution.group.clone());
+            }
+            Some(resolution.group.id)
         } else if patch.group_name.as_deref() == Some("") {
             None
         } else {
@@ -70,10 +83,7 @@ pub async fn execute(
     // resolved it into `group_id`. The repo doesn't need the name.
     patch.group_name = None;
 
-    let updated = repos
-        .contracts()
-        .update(project_id, contract_id, &patch, group_id)
-        .await?;
+    let updated = repos.contracts().update(project_id, contract_id, &patch, group_id).await?;
 
     // Validate the merged contract: same invariants `create_contract`
     // enforces. This catches patches that would have been rejected on
@@ -103,7 +113,53 @@ pub async fn execute(
         }
     }
 
+    if let Some(principal) = actor {
+        crate::domain::use_cases::audit::record(
+            repos,
+            principal,
+            AuditAction::Update,
+            AuditResource::Contract,
+            Some(updated.id),
+            serde_json::json!({
+                "contract_id": updated.id,
+                "project_id": updated.project_id,
+                "method": updated.method.as_str(),
+                "path": updated.path,
+            }),
+        )
+        .await?;
+        if let Some(group) = created_group {
+            crate::domain::use_cases::audit::record(
+                repos,
+                principal,
+                AuditAction::Create,
+                AuditResource::Group,
+                Some(group.id),
+                serde_json::json!({
+                    "group_id": group.id,
+                    "project_id": group.project_id,
+                    "name": group.name,
+                }),
+            )
+            .await?;
+        }
+    }
+
     Ok(updated)
+}
+
+pub async fn execute_with_actor(
+    repos: &dyn Repos,
+    embedder: Arc<dyn Embedder>,
+    embed_cfg: &EmbedConfig,
+    principal: &Principal,
+    project_slug: crate::domain::project::ProjectSlug,
+    contract_id: Id,
+    patch: ContractUpdate,
+) -> Result<Contract, DomainError> {
+    principal.require_scope("ledgapi:write")?;
+    execute_inner(repos, embedder, embed_cfg, project_slug, contract_id, patch, Some(principal))
+        .await
 }
 
 /// Re-run the same invariants `ContractCreate::validate` enforces on
@@ -211,7 +267,10 @@ mod tests {
         // Create a group "Auth" and assign the contract to it.
         let group = repos
             .groups()
-            .resolve(p.id, &crate::domain::group::GroupRef { name: "Auth".to_owned(), description: None })
+            .resolve(
+                p.id,
+                &crate::domain::group::GroupRef { name: "Auth".to_owned(), description: None },
+            )
             .await
             .unwrap();
         let created = crate::domain::use_cases::create_contract::execute(
@@ -226,12 +285,7 @@ mod tests {
         // Set the group via a first update (no group_name field on the test helper).
         repos
             .contracts()
-            .update(
-                p.id,
-                created.contract_id,
-                &ContractUpdate::default(),
-                Some(group.id),
-            )
+            .update(p.id, created.contract_id, &ContractUpdate::default(), Some(group.id))
             .await
             .unwrap();
         (repos, Arc::new(StubEmbedder::new()), p.slug, created.contract_id)

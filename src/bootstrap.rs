@@ -1,19 +1,20 @@
 //! Composition root. Wires config → telemetry → DB → embedder → repos
 //! → AppState → axum router → serve until SIGTERM.
 
+use crate::domain::ports::Repos;
 use crate::errors::AppError;
+use crate::infra::auth::password;
 use crate::infra::db;
 use crate::infra::embeddings::fastembed_impl::FastembedEmbedder;
-use crate::infra::repos::{SqliteRepos, SqliteTokenRepo};
-use crate::state::{AppState, SetupState};
-use anyhow::{Context, anyhow};
+use crate::infra::repos::SqliteRepos;
+use crate::state::AppState;
+use anyhow::Context;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 /// Bootstrap entry point. Reads config, initialises telemetry, opens
-/// the DB, ensures a bootstrap token exists, wires the embedder and
+/// the DB, seeds the initial super admin, wires the embedder and
 /// repos, builds `AppState`, and serves until SIGTERM/SIGINT.
 pub async fn run() -> anyhow::Result<()> {
     let cfg = crate::config::AppConfig::from_env()?;
@@ -21,40 +22,30 @@ pub async fn run() -> anyhow::Result<()> {
 
     let db = db::open(&cfg.database).context("open db")?;
 
-    // Build the token repo handle directly. (Avoids the
-    // `Db::into_token_repo` adapter that the brief sketches.)
-    let token_repo: Arc<SqliteTokenRepo> = Arc::new(SqliteTokenRepo { db: db.clone() });
-
-    let (plaintext, was_first) =
-        crate::domain::use_cases::bootstrap_token::ensure(token_repo.as_ref())
-            .await
-            .map_err(|e| anyhow!("bootstrap token: {e}"))?;
-
-    if was_first {
-        tracing::info!("first run — bootstrap token generated");
-        println!("\n================================================");
-        println!("  LEDGAPI_BOOTSTRAP_TOKEN={plaintext}");
-        println!("================================================\n");
-    }
+    let repos = SqliteRepos::new(db.clone());
+    let password_hash = match cfg.auth.initial_admin_password.as_deref() {
+        Some(password) => Some(
+            password::hash_password(password)
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?,
+        ),
+        None => None,
+    };
+    crate::domain::use_cases::bootstrap_admin::ensure(
+        repos.users(),
+        cfg.auth.initial_admin_username.as_deref(),
+        password_hash.as_deref(),
+    )
+    .await
+    .map_err(|error| anyhow::anyhow!("initial admin bootstrap failed: {error}"))?;
 
     let embedder: Arc<dyn crate::domain::ports::Embedder> =
         Arc::new(FastembedEmbedder::new(&cfg.embed.cache_dir, &cfg.embed.model)?);
-
-    let repos = SqliteRepos::new(db.clone());
-
-    let setup_state = Arc::new(SetupState {
-        active: was_first,
-        expires_at: Instant::now() + Duration::from_mins(5),
-        plaintext: was_first.then(|| plaintext.clone()),
-    });
 
     let state = AppState {
         repos: Arc::new(repos),
         embedder: embedder.clone(),
         mcp: Arc::new(crate::mcp::tools_impl::McpRegistry::new()),
         cfg: Arc::new(cfg.clone()),
-        setup_active: Arc::new(AtomicBool::new(was_first)),
-        setup_state,
         db,
     };
 

@@ -18,4 +18,23 @@
 {% if let Some(s) = request_example %}<h2>Request example</h2><pre>{{ s }}</pre>{% endif %}
 <h2>Response schema</h2><pre>{{ response_schema }}</pre>
 {% if let Some(s) = response_example %}<h2>Response example</h2><pre>{{ s }}</pre>{% endif %}
+{% if !examples.is_empty() %}
+<h2>Examples</h2>
+{% for example in examples %}
+<section class="example-card">
+    <h3>{{ example.name }} <span class="example-kind example-kind-{{ example.kind }}">{{ example.kind }}</span> <span class="status-code">{{ example.status_code }}</span></h3>
+    <h4>Request</h4><pre>{{ example.request }}</pre>
+    <h4>Response</h4><pre>{{ example.response }}</pre>
+</section>
+{% endfor %}
+{% endif %}
+{% if !audit.is_empty() %}
+<h2>Audit history</h2>
+<table>
+    <thead><tr><th>Actor</th><th>Action</th><th>Time</th></tr></thead>
+    <tbody>
+    {% for entry in audit %}<tr><td>{{ entry.actor }}</td><td>{{ entry.action }}</td><td>{{ entry.created_at }}</td></tr>{% endfor %}
+    </tbody>
+</table>
+{% endif %}
 {% endblock %}

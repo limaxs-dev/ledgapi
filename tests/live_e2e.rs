@@ -19,7 +19,9 @@
 
 use std::sync::{Arc, OnceLock};
 
-use ledgapi::config::{AppConfig, DatabaseConfig, EmbedConfig, LogConfig, LogFormat, ServerConfig};
+use ledgapi::config::{
+    AppConfig, AuthConfig, DatabaseConfig, EmbedConfig, LogConfig, LogFormat, ServerConfig,
+};
 use ledgapi::domain::contract::{ContractCreate, Method};
 use ledgapi::domain::ports::{Embedder, Repos};
 use ledgapi::domain::project::{ProjectCreate, ProjectSlug};
@@ -43,6 +45,16 @@ fn fixture_cfg() -> AppConfig {
             hybrid_limit: 10,
         },
         log: LogConfig { format: LogFormat::Pretty, level: "warn".into() },
+        auth: AuthConfig {
+            initial_admin_username: None,
+            initial_admin_password: None,
+            issuer: "http://localhost:8080".into(),
+            session_ttl: std::time::Duration::from_hours(1),
+            access_token_ttl: std::time::Duration::from_hours(1),
+            refresh_token_ttl: std::time::Duration::from_hours(24),
+            authorization_code_ttl: std::time::Duration::from_mins(1),
+            cookie_secure: false,
+        },
     }
 }
 
@@ -104,6 +116,7 @@ async fn real_semantic_search_finds_similar() {
                 request_example: None,
                 response_schema: serde_json::json!({"type": "object"}),
                 response_example: None,
+                examples: None,
                 auth_type: None,
                 status: None,
                 tags: None,
@@ -135,6 +148,7 @@ async fn real_semantic_search_finds_similar() {
                 request_example: None,
                 response_schema: serde_json::json!({"type": "object"}),
                 response_example: None,
+                examples: None,
                 auth_type: None,
                 status: None,
                 tags: None,
@@ -193,6 +207,7 @@ async fn real_sqlite_vec_knn_returns_ordered_neighbours() {
                     request_example: None,
                     response_schema: serde_json::json!({"type": "object"}),
                     response_example: None,
+                    examples: None,
                     auth_type: None,
                     status: None,
                     tags: None,
@@ -255,6 +270,7 @@ async fn real_openapi_export_matches_golden() {
                 request_example: None,
                 response_schema: serde_json::json!({"type": "object"}),
                 response_example: None,
+                examples: None,
                 auth_type: Some("bearer".into()),
                 status: None,
                 tags: None,

@@ -119,27 +119,67 @@ fn build_operation(c: &crate::domain::contract::Contract) -> Value {
 
     // Body
     if let Some(body) = &c.request_body_schema {
+        let mut media_type = Map::new();
+        media_type.insert("schema".into(), body.clone());
+        let request_examples: BTreeMap<String, Value> = c
+            .examples
+            .iter()
+            .map(|example| {
+                (
+                    example.name.clone(),
+                    json!({
+                        "summary": format!("{} ({})", example.name, example.kind.as_str()),
+                        "value": example.request,
+                    }),
+                )
+            })
+            .collect();
+        if !request_examples.is_empty() {
+            media_type.insert("examples".into(), json!(request_examples));
+        }
         op.insert(
             "requestBody".into(),
             json!({
                 "required": true,
-                "content": {"application/json": {"schema": body}}
+                "content": {"application/json": Value::Object(media_type)}
             }),
         );
     }
 
-    // Response
-    let mut resp_content = Map::new();
-    resp_content.insert("application/json".into(), json!({"schema": c.response_schema}));
-    op.insert(
-        "responses".into(),
-        json!({
-            "200": {
-                "description": "Successful response",
-                "content": resp_content
-            }
-        }),
-    );
+    // Responses
+    let mut responses = BTreeMap::<String, Value>::new();
+    let mut response_examples: BTreeMap<u16, BTreeMap<String, Value>> = BTreeMap::new();
+    for example in &c.examples {
+        response_examples.entry(example.status_code).or_default().insert(
+            example.name.clone(),
+            json!({
+                "summary": format!("{} ({})", example.name, example.kind.as_str()),
+                "value": example.response,
+            }),
+        );
+    }
+    let status_codes = response_examples
+        .keys()
+        .copied()
+        .chain(std::iter::once(200))
+        .collect::<std::collections::BTreeSet<_>>();
+    for status_code in status_codes {
+        let mut media_type = Map::new();
+        if status_code == 200 {
+            media_type.insert("schema".into(), c.response_schema.clone());
+        }
+        if let Some(examples) = response_examples.get(&status_code) {
+            media_type.insert("examples".into(), json!(examples));
+        }
+        responses.insert(
+            status_code.to_string(),
+            json!({
+                "description": if status_code == 200 { "Successful response" } else { "Example response" },
+                "content": {"application/json": Value::Object(media_type)}
+            }),
+        );
+    }
+    op.insert("responses".into(), Value::Object(responses.into_iter().collect()));
 
     if let Some(a) = c.auth_type {
         if a != AuthType::None {
@@ -243,6 +283,67 @@ mod tests {
     }
 
     #[test]
+    fn operation_includes_named_request_and_response_examples() {
+        let c = Contract {
+            id: Id::new(),
+            project_id: Id::new(),
+            group_id: None,
+            method: Method::Post,
+            path: "/users".to_owned(),
+            summary: "Create user".to_owned(),
+            description: None,
+            request_headers: None,
+            request_params: None,
+            request_body_schema: Some(json!({"type": "object"})),
+            request_example: None,
+            response_schema: json!({"type": "object"}),
+            response_example: None,
+            examples: vec![
+                crate::domain::contract::ContractExample {
+                    id: Id::new(),
+                    name: "happy-path".to_owned(),
+                    kind: crate::domain::contract::ExampleKind::Positive,
+                    status_code: 201,
+                    request: json!({"name": "Ada"}),
+                    response: json!({"id": 1}),
+                    ordinal: 0,
+                    created_at: time::OffsetDateTime::UNIX_EPOCH,
+                    updated_at: time::OffsetDateTime::UNIX_EPOCH,
+                },
+                crate::domain::contract::ContractExample {
+                    id: Id::new(),
+                    name: "validation-error".to_owned(),
+                    kind: crate::domain::contract::ExampleKind::Negative,
+                    status_code: 422,
+                    request: json!({"name": ""}),
+                    response: json!({"error": "invalid"}),
+                    ordinal: 1,
+                    created_at: time::OffsetDateTime::UNIX_EPOCH,
+                    updated_at: time::OffsetDateTime::UNIX_EPOCH,
+                },
+            ],
+            auth_type: None,
+            status: Status::Draft,
+            tags: vec![],
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+        };
+        let op = build_operation(&c);
+        assert_eq!(
+            op["requestBody"]["content"]["application/json"]["examples"]["happy-path"]["value"],
+            json!({"name": "Ada"})
+        );
+        assert_eq!(
+            op["responses"]["201"]["content"]["application/json"]["examples"]["happy-path"]["value"],
+            json!({"id": 1})
+        );
+        assert_eq!(
+            op["responses"]["422"]["content"]["application/json"]["examples"]["validation-error"]["value"],
+            json!({"error": "invalid"})
+        );
+    }
+
+    #[test]
     fn operation_includes_path_param() {
         let c = Contract {
             id: Id::new(),
@@ -258,6 +359,7 @@ mod tests {
             request_example: None,
             response_schema: json!({"type":"object"}),
             response_example: None,
+            examples: vec![],
             auth_type: None,
             status: Status::Draft,
             tags: vec![],

@@ -40,6 +40,8 @@ pub struct Input {
     #[serde(default)]
     pub response_example: Option<Value>,
     #[serde(default)]
+    pub examples: Option<Vec<crate::domain::contract::ContractExampleInput>>,
+    #[serde(default)]
     pub auth_type: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
@@ -65,6 +67,7 @@ impl Tool for UpdateContractTool {
     }
 
     async fn execute(&self, ctx: ToolContext, input: Value) -> Result<Value, DomainError> {
+        ctx.require_scope("ledgapi:write")?;
         let p: Input = serde_json::from_value(input).map_err(|e| DomainError::Validation {
             field: "args".into(),
             message: e.to_string(),
@@ -85,15 +88,17 @@ impl Tool for UpdateContractTool {
             request_example: p.request_example,
             response_schema: p.response_schema,
             response_example: p.response_example,
+            examples: p.examples,
             auth_type: p.auth_type,
             status: p.status,
             tags: p.tags,
             group_name: p.group_name,
         };
-        let out = crate::domain::use_cases::update_contract::execute(
+        let out = crate::domain::use_cases::update_contract::execute_with_actor(
             ctx.state.repos(),
             ctx.state.embedder(),
             ctx.state.embed_cfg(),
+            &ctx.principal,
             slug,
             id,
             patch,

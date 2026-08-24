@@ -1,0 +1,81 @@
+{
+  "verification": "Chrome DevTools Protocol",
+  "target": {
+    "url": "http://127.0.0.1:8080/",
+    "type": "page"
+  },
+  "navigation": {
+    "loadEventFired": true
+  },
+  "domAndFetch": {
+    "page": {
+      "url": "http://127.0.0.1:8080/",
+      "title": "Projects \u00b7 ledgapi",
+      "readyState": "complete",
+      "doctype": "html",
+      "heading": "Projects",
+      "bodyText": "ledgapi\nProjects\nProjects\nSLUG\tNAME\tCONTRACTS\nqa-i3-alpha-1771\tQA Isolation I3 Alpha 1771\t0\nqa-i3-beta-1771\tQA Isolation I3 Beta 1771\t0\nAPI contracts, remembered by your agents.",
+      "stylesheets": [
+        "http://127.0.0.1:8080/static/style.css"
+      ]
+    },
+    "health": {
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "bodyText": "ok"
+    },
+    "auth": {
+      "noAuthorization": {
+        "status": 401,
+        "contentType": "application/json",
+        "code": 401,
+        "errorCode": "unauthorized"
+      },
+      "invalidBearer": {
+        "status": 401,
+        "contentType": "application/json",
+        "code": 401,
+        "errorCode": "unauthorized"
+      }
+    },
+    "mcp": {
+      "initialize": {
+        "status": 200,
+        "contentType": "application/json",
+        "jsonrpc": "2.0",
+        "server": "ledgapi",
+        "protocol": "2025-06-18"
+      },
+      "toolsList": {
+        "status": 200,
+        "contentType": "application/json",
+        "toolCount": 10,
+        "hasCreateContract": true
+      }
+    }
+  },
+  "network": [
+    {
+      "url": "http://127.0.0.1:8080/",
+      "status": 200,
+      "mimeType": "text/html"
+    },
+    {
+      "url": "http://127.0.0.1:8080/static/style.css",
+      "status": 200,
+      "mimeType": "text/css"
+    }
+  ],
+  "consoleExceptions": [],
+  "assertions": {
+    "uiLoaded": true,
+    "stylesheetLoaded": true,
+    "noConsoleExceptions": true,
+    "authRejectedWithoutToken": true,
+    "authRejectedInvalidToken": true,
+    "mcpInitializeSucceeded": true,
+    "mcpToolsListSucceeded": true,
+    "healthSucceeded": true
+  },
+  "allAssertionsPassed": true
+}

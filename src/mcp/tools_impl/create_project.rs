@@ -39,13 +39,15 @@ impl Tool for CreateProjectTool {
     }
 
     async fn execute(&self, ctx: ToolContext, input: Value) -> Result<Value, DomainError> {
+        ctx.require_scope("ledgapi:write")?;
         let p: Input = serde_json::from_value(input).map_err(|e| DomainError::Validation {
             field: "args".into(),
             message: e.to_string(),
         })?;
         let slug = ProjectSlug::parse(&p.slug)?;
-        let out = crate::domain::use_cases::manage_project::create(
+        let out = crate::domain::use_cases::manage_project::create_with_actor(
             ctx.state.repos(),
+            &ctx.principal,
             ProjectCreate { slug, name: p.name, description: p.description },
         )
         .await?;

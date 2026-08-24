@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · ledgapi</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="container auth-page">
+        <section class="card login-card">
+            <div class="login-brand">
+                <img src="/static/logo.svg" alt="ledgapi" class="login-logo">
+            </div>
+            <h1>Sign in to ledgapi</h1>
+            {% if let Some(message) = error %}
+                <p class="error">{{ message }}</p>
+            {% endif %}
+            <form class="login-form" method="post" action="/login">
+                <input type="hidden" name="next" value="{{ next }}">
+                <label>Username <input name="username" autocomplete="username" required></label>
+                <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+                <button type="submit">Sign in</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

@@ -12,6 +12,45 @@ pub struct AppConfig {
     pub database: DatabaseConfig,
     pub embed: EmbedConfig,
     pub log: LogConfig,
+    pub auth: AuthConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    pub initial_admin_username: Option<String>,
+    pub initial_admin_password: Option<String>,
+    #[serde(default = "default_issuer")]
+    pub issuer: String,
+    #[serde(with = "humantime_serde", default = "default_session_ttl")]
+    pub session_ttl: Duration,
+    #[serde(with = "humantime_serde", default = "default_access_token_ttl")]
+    pub access_token_ttl: Duration,
+    #[serde(with = "humantime_serde", default = "default_refresh_token_ttl")]
+    pub refresh_token_ttl: Duration,
+    #[serde(with = "humantime_serde", default = "default_authorization_code_ttl")]
+    pub authorization_code_ttl: Duration,
+    #[serde(default)]
+    pub cookie_secure: bool,
+}
+
+fn default_issuer() -> String {
+    "http://localhost:8080".to_owned()
+}
+
+fn default_session_ttl() -> Duration {
+    Duration::from_hours(8)
+}
+
+fn default_access_token_ttl() -> Duration {
+    Duration::from_hours(1)
+}
+
+fn default_refresh_token_ttl() -> Duration {
+    Duration::from_hours(24 * 30)
+}
+
+fn default_authorization_code_ttl() -> Duration {
+    Duration::from_mins(1)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +148,8 @@ impl AppConfig {
             .set_default("embed.cache_dir", "/data/.cache/fastembed")?
             .set_default("log.format", "pretty")?
             .set_default("log.level", "info")?
+            .set_default("auth.issuer", "http://localhost:8080")?
+            .set_default("auth.cookie_secure", false)?
             .add_source(Environment::with_prefix("APP").separator("__").try_parsing(true))
             .build()?;
 

@@ -1,6 +1,4 @@
-//! Bearer-token auth middleware. Applied only to `/mcp`.
-
-use crate::core::id::Id;
+use crate::domain::auth::{Principal, Role};
 use crate::domain::errors::DomainError;
 use crate::errors::AppError;
 use crate::infra::auth::token;
@@ -9,39 +7,59 @@ use axum::extract::Request;
 use axum::http::header::AUTHORIZATION;
 use axum::middleware::Next;
 use axum::response::Response;
+use time::OffsetDateTime;
 
-/// Extract the bearer token from the `Authorization` header. Returns
-/// `None` if the header is missing, malformed, or has the wrong scheme.
 fn extract_bearer(req: &Request) -> Option<&str> {
     let header = req.headers().get(AUTHORIZATION)?.to_str().ok()?;
     let token = header.strip_prefix("Bearer ")?.trim();
-    if token.is_empty() || token.len() != 64 || !token.chars().all(|c| c.is_ascii_hexdigit()) {
-        return None;
-    }
-    Some(token)
+    (!token.is_empty()).then_some(token)
 }
 
-/// axum middleware: enforces Bearer token on every request that hits
-/// the protected route. The `AppState` is passed explicitly (since the
-/// router no longer carries state via `with_state`); see
-/// `web::router::router`.
-pub async fn bearer_auth(req: Request, next: Next, state: AppState) -> Result<Response, AppError> {
-    let token = extract_bearer(&req).ok_or_else(|| AppError::from(DomainError::AuthMissing))?;
-
-    let hash = token::sha256_hex(token);
-    let valid = state.repos().tokens().exists(&hash).await.map_err(AppError::from)?;
-    if !valid {
-        return Err(AppError::from(DomainError::AuthInvalid));
+fn role_scopes(role: Role) -> Vec<&'static str> {
+    match role {
+        Role::SuperAdmin => vec!["ledgapi:read", "ledgapi:write", "ledgapi:admin"],
+        Role::Editor => vec!["ledgapi:read", "ledgapi:write"],
+        Role::Viewer => vec!["ledgapi:read"],
     }
+}
 
-    state.mark_setup_consumed();
-
+pub async fn bearer_auth(
+    mut req: Request,
+    next: Next,
+    state: AppState,
+) -> Result<Response, AppError> {
+    let raw_token = extract_bearer(&req).ok_or_else(|| AppError::from(DomainError::AuthMissing))?;
+    let token_hash = token::sha256_hex(raw_token);
+    let oauth_token = state
+        .repos()
+        .oauth()
+        .find_access_token(&token_hash, OffsetDateTime::now_utc())
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::from(DomainError::AuthInvalid))?;
+    let user = state
+        .repos()
+        .users()
+        .find_by_id(oauth_token.user_id)
+        .await
+        .map_err(AppError::from)?
+        .filter(|user| user.active)
+        .ok_or_else(|| AppError::from(DomainError::AuthInvalid))?;
+    let allowed_scopes = role_scopes(user.role);
+    let scopes = oauth_token
+        .scope
+        .into_iter()
+        .filter(|scope| allowed_scopes.contains(&scope.as_str()))
+        .collect();
+    req.extensions_mut().insert(Principal {
+        user_id: user.id,
+        username: user.username,
+        role: user.role,
+        client_id: Some(oauth_token.client_id),
+        scopes,
+    });
     Ok(next.run(req).await)
 }
-
-/// Silence "unused" until `Id` is referenced by other middleware code.
-#[allow(dead_code)]
-fn _id_marker(_: Id) {}
 
 #[cfg(test)]
 mod tests {
@@ -58,40 +76,15 @@ mod tests {
             .unwrap()
     }
 
-    fn req_no_header() -> Request {
-        AxumRequest::builder().method(Method::GET).uri("/mcp").body(Body::empty()).unwrap()
+    #[test]
+    fn extract_bearer_accepts_opaque_token() {
+        assert_eq!(extract_bearer(&req_with_header("Bearer opaque.token")), Some("opaque.token"));
     }
 
     #[test]
-    fn extract_bearer_accepts_well_formed() {
-        let r = req_with_header(
-            "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        );
-        assert!(extract_bearer(&r).is_some());
-    }
-
-    #[test]
-    fn extract_bearer_rejects_missing() {
-        assert!(extract_bearer(&req_no_header()).is_none());
-    }
-
-    #[test]
-    fn extract_bearer_rejects_wrong_scheme() {
-        let r = req_with_header("Basic dXNlcjpwYXNz");
-        assert!(extract_bearer(&r).is_none());
-    }
-
-    #[test]
-    fn extract_bearer_rejects_bad_length() {
-        let r = req_with_header("Bearer abc");
-        assert!(extract_bearer(&r).is_none());
-    }
-
-    #[test]
-    fn extract_bearer_rejects_non_hex() {
-        let r = req_with_header(
-            "Bearer zzzz56789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        );
-        assert!(extract_bearer(&r).is_none());
+    fn extract_bearer_rejects_missing_or_wrong_scheme() {
+        assert!(extract_bearer(&req_with_header("Basic abc")).is_none());
+        let request = AxumRequest::builder().uri("/mcp").body(Body::empty()).unwrap();
+        assert!(extract_bearer(&request).is_none());
     }
 }

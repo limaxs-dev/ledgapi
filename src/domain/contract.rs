@@ -145,6 +145,75 @@ pub fn normalize_path(s: &str) -> String {
     }
 }
 
+/// A named request/response example for one contract scenario.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContractExample {
+    pub id: Id,
+    pub name: String,
+    pub kind: ExampleKind,
+    pub status_code: u16,
+    pub request: serde_json::Value,
+    pub response: serde_json::Value,
+    pub ordinal: i64,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+/// Whether an example describes a successful or failing scenario.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ExampleKind {
+    Positive,
+    Negative,
+}
+
+impl ExampleKind {
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "positive" => Some(Self::Positive),
+            "negative" => Some(Self::Negative),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Positive => "positive",
+            Self::Negative => "negative",
+        }
+    }
+}
+
+/// Input for creating or replacing a request/response example.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ContractExampleInput {
+    pub name: String,
+    pub kind: ExampleKind,
+    pub status_code: u16,
+    pub request: serde_json::Value,
+    pub response: serde_json::Value,
+}
+
+impl ContractExampleInput {
+    pub fn validate(&self, field: &str) -> Result<(), DomainError> {
+        if self.name.trim().is_empty() || self.name.len() > 100 {
+            return Err(DomainError::Validation {
+                field: field.to_owned(),
+                message: "name must be 1-100 characters".to_owned(),
+            });
+        }
+        if !(100..=599).contains(&self.status_code) {
+            return Err(DomainError::Validation {
+                field: field.to_owned(),
+                message: "status_code must be between 100 and 599".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// A contract stored in the registry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Contract {
@@ -161,6 +230,7 @@ pub struct Contract {
     pub request_example: Option<serde_json::Value>,
     pub response_schema: serde_json::Value,
     pub response_example: Option<serde_json::Value>,
+    pub examples: Vec<ContractExample>,
     pub auth_type: Option<AuthType>,
     pub status: Status,
     pub tags: Vec<String>,
@@ -206,6 +276,8 @@ pub struct ContractCreate {
     pub response_schema: serde_json::Value,
     #[serde(default)]
     pub response_example: Option<serde_json::Value>,
+    #[serde(default)]
+    pub examples: Option<Vec<ContractExampleInput>>,
     #[serde(default)]
     pub auth_type: Option<String>,
     #[serde(default)]
@@ -258,6 +330,24 @@ impl ContractCreate {
                 field: "response_schema".to_owned(),
                 message: "must be a non-null JSON Schema".to_owned(),
             });
+        }
+        if let Some(examples) = &self.examples {
+            if examples.len() > 50 {
+                return Err(DomainError::Validation {
+                    field: "examples".to_owned(),
+                    message: "must contain at most 50 entries".to_owned(),
+                });
+            }
+            let mut names = std::collections::HashSet::with_capacity(examples.len());
+            for example in examples {
+                example.validate("examples")?;
+                if !names.insert(example.name.trim().to_owned()) {
+                    return Err(DomainError::Validation {
+                        field: "examples".to_owned(),
+                        message: "names must be unique per contract".to_owned(),
+                    });
+                }
+            }
         }
         if let Some(tags) = &self.tags {
             if tags.len() > 32 {
@@ -324,6 +414,8 @@ pub struct ContractUpdate {
     #[serde(default)]
     pub response_example: Option<serde_json::Value>,
     #[serde(default)]
+    pub examples: Option<Vec<ContractExampleInput>>,
+    #[serde(default)]
     pub auth_type: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
@@ -334,6 +426,29 @@ pub struct ContractUpdate {
 }
 
 impl ContractUpdate {
+    pub fn validate_examples(&self) -> Result<(), DomainError> {
+        let Some(examples) = &self.examples else {
+            return Ok(());
+        };
+        if examples.len() > 50 {
+            return Err(DomainError::Validation {
+                field: "examples".to_owned(),
+                message: "must contain at most 50 entries".to_owned(),
+            });
+        }
+        let mut names = std::collections::HashSet::with_capacity(examples.len());
+        for example in examples {
+            example.validate("examples")?;
+            if !names.insert(example.name.trim().to_owned()) {
+                return Err(DomainError::Validation {
+                    field: "examples".to_owned(),
+                    message: "names must be unique per contract".to_owned(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// True if any change touches a field that affects the embedding
     /// (spec §13 #3). Used by `update_contract` to decide whether to
     /// regenerate.
@@ -358,6 +473,7 @@ impl ContractUpdate {
             && self.request_example.is_none()
             && self.response_schema.is_none()
             && self.response_example.is_none()
+            && self.examples.is_none()
             && self.auth_type.is_none()
             && self.status.is_none()
             && self.tags.is_none()
@@ -410,6 +526,7 @@ mod tests {
             request_example: None,
             response_schema: serde_json::json!({"type": "object"}),
             response_example: None,
+            examples: None,
             auth_type: None,
             status: None,
             tags: None,

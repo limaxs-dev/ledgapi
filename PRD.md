@@ -40,16 +40,14 @@ An API contract registry that:
 - [ ] Exact search by ID / path / method.
 - [ ] Read-only web UI for browsing & searching.
 - [ ] Export to OpenAPI 3.x YAML per project.
-- [ ] Setup via Docker, auth token generated once during setup.
+- [ ] Setup via Docker; initial super-admin seeded from environment on first boot.
 - [ ] MCP server via HTTP/SSE transport, accessible by multiple agents concurrently.
 
 ### 2.2 Non-Goals (v1)
 
 - ❌ Not an API client / does not execute HTTP requests to real APIs (unlike Postman).
-- ❌ No versioning/audit trail history of contract changes (planned for v2).
-- ❌ No CRUD from the UI (UI is read-only only in v1).
-- ❌ No multi-user/role management (auth is only a single global admin token).
-- ❌ No OAuth flow (uses a static bearer token).
+- ❌ No CRUD from the UI (mutations happen through MCP tools under an authenticated actor).
+- ❌ No field-level diff/version history per contract (the audit log records who changed what, not diffs).
 - ❌ No real-time collaboration/notification between agents.
 
 ---
@@ -92,11 +90,11 @@ An API contract registry that:
 │                                                       │
 └─────────────────────────────────────────────────────┘
          ▲
-         │ Bearer Token (Authorization header)
+         │ OAuth 2.1 (authorization code + PKCE via browser)
          │
 ┌────────┴────────┐
-│  AI Agent(s)     │  mcp.json: { type: http, url: http://host:port/mcp,
-│  (Claude Code)   │             headers: { Authorization: Bearer <token> } }
+│  AI Agent(s)     │  mcp.json: { type: http, url: http://host:port/mcp }
+│  (Claude Code)   │
 └──────────────────┘
 
 ```
@@ -113,7 +111,7 @@ An API contract registry that:
 | Embedding     | fastembed-rs (model: `all-MiniLM-L6-v2` or equivalent, local/offline) |
 | MCP transport | HTTP + SSE                                                          |
 | UI rendering  | Server-rendered HTML (Askama or Tera)                               |
-| Auth          | Static bearer token, generated at first-run setup                   |
+| Auth          | OAuth 2.1 (browser login + PKCE), session cookies, users/roles in SQLite |
 | Deployment    | Single Docker container                                             |
 
 
@@ -184,13 +182,16 @@ An API contract registry that:
 | embedding    | FLOAT[] | vector from `summary + description + path`  |
 
 
-### 5.5 `auth_tokens`
+### 5.5 `users` / `web_sessions` / `oauth_*` / `audit_log`
 
 
-| Column      | Type     | Description                |
-| ----------- | -------- | -------------------------- |
-| token_hash  | TEXT     | hash of the static token   |
-| created_at  | DATETIME |                            |
+| Table            | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `users`          | username, Argon2id password hash, role, active flag            |
+| `web_sessions`   | hashed session cookie tokens with CSRF hash and expiry         |
+| `oauth_clients`  | dynamically registered MCP clients and their redirect URIs     |
+| `oauth_authorization_codes` / `oauth_access_tokens` / `oauth_refresh_tokens` | hashed, one-time or revocable OAuth grants |
+| `audit_log`      | append-only record of every create/update/delete with its actor |
 
 
 ---
@@ -313,27 +314,31 @@ Hybrid search: semantic (RAG) + exact.
 
 | Endpoint                          | Method   | Description                                          |
 | --------------------------------- | -------- | ---------------------------------------------------- |
-| `/mcp`                            | POST/SSE | MCP server endpoint (requires Bearer token)          |
-| `/`                               | GET      | Dashboard: list all projects                         |
+| `/mcp`                            | POST/SSE | MCP server endpoint (requires OAuth access token)    |
+| `/`                               | GET      | Dashboard: list all projects (requires login)        |
 | `/projects/{slug}`                | GET      | List groups & contracts within a project             |
-| `/projects/{slug}/contracts/{id}` | GET      | Contract details (request/response schema, examples) |
+| `/projects/{slug}/contracts/{id}` | GET      | Contract details incl. per-contract audit history    |
 | `/projects/{slug}/search?q=...`   | GET      | Search UI (uses `search_contract` behind the scenes) |
 | `/projects/{slug}/openapi.yml`    | GET      | Download OpenAPI export                              |
-| `/setup`                          | GET/POST | First-run setup page (generate token)                |
+| `/login`, `/logout`               | GET/POST | Browser login and session logout                     |
+| `/.well-known/oauth-*`            | GET      | MCP OAuth discovery metadata                         |
+| `/oauth/register`                 | POST     | Dynamic client registration (public PKCE clients)    |
+| `/oauth/authorize`, `/oauth/consent` | GET/POST | Browser authorization and consent screen          |
+| `/oauth/token`                    | POST     | Authorization-code / refresh-token exchange          |
+| `/admin/users`                    | GET/POST | Super-admin user management (viewer/editor/admin)    |
+| `/admin/audit`                    | GET      | Super-admin global audit log viewer                  |
+| `/healthz`, `/readyz`             | GET      | Liveness / readiness probes                          |
 
 
 ---
 
 ## 8. Auth & Setup Flow
 
-1. First `docker run` → server checks whether the `auth_tokens` table is empty.
-2. If empty → generate a random token (e.g., 32-byte hex), hash & store it in the DB, **display the plaintext token once in the container logs** (and/or on the `/setup` page, which auto-disables after the first token is created).
-3. User copies the token and puts it into `mcp.json`:
-  ```json
-  {  "mcpServers": {    "api-contract-registry": {      "type": "http",      "url": "http://localhost:8080/mcp",      "headers": { "Authorization": "Bearer <token>" }    }  }}
-
-  ```
-4. All requests to `/mcp` are validated via bearer token middleware. The UI (`/`, `/projects/*`) can be made **without auth** (assuming access on a local/trusted network) or use the same token — **needs to be decided** (see Open Questions §11).
+1. First `docker run` → server checks whether the `users` table is empty.
+2. If empty → the initial super-admin is created from `APP__AUTH__INITIAL_ADMIN_USERNAME` and `APP__AUTH__INITIAL_ADMIN_PASSWORD`. On an empty database, both variables are **required**; once any user exists they are ignored (existing users are never overwritten).
+3. The human logs into the web UI at `/login`; sessions are opaque HttpOnly cookies backed by hashed rows in `web_sessions`.
+4. MCP clients use OAuth 2.1: discovery via `/.well-known/oauth-protected-resource`, dynamic client registration, browser login + consent, then authorization-code + PKCE exchange at `/oauth/token`. `.mcp.json` needs only `type` and `url`.
+5. Scopes are capped by role (`ledgapi:read` for all, `ledgapi:write` for editor+, `ledgapi:admin` for super-admin). Every successful create/update/delete is appended to `audit_log` with its acting user; reads, logins, and failed writes are not audited.
 
 ---
 
@@ -353,15 +358,15 @@ Hybrid search: semantic (RAG) + exact.
 
 - CRUD contracts via MCP, grouping, multi-project
 - RAG duplicate check + semantic search
-- Read-only UI
-- OpenAPI export
-- Docker single container, bearer token auth
+- Login-protected web UI + OpenAPI export
+- OAuth 2.1 browser login for MCP clients (PKCE, consent)
+- Multi-user roles (viewer / editor / super-admin) seeded from env on first boot
+- Append-only audit log of all mutations with actor
+- Docker single container
 
 ### v2 (candidates, not yet scoped in detail)
 
-- Versioning/audit trail (history of contract changes)
-- OAuth 2.1 flow (browser login) as an alternative to bearer token
-- Multi-user/role-based access
+- Field-level diff/version history per contract
 - Import from existing OpenAPI yml (reverse — populate the registry from an existing spec)
 - Webhook/notification when a contract changes (e.g., breaking change alert)
 - CLI companion tool (alongside MCP) for humans who want to CRUD without going through an agent
@@ -370,7 +375,7 @@ Hybrid search: semantic (RAG) + exact.
 
 ## 11. Open Questions (need to be decided before development starts)
 
-1. **UI auth**: should the UI pages (`/`, `/projects/*`) require the same token as MCP, or are they considered trusted network and opened without auth?
+1. ~~**UI auth**~~ — resolved: all web UI routes require a session; `/admin/*` additionally requires super-admin.
 2. **Embedding model & language**: will contracts be dominated by English (technical), or do we also need a model more friendly to Indonesian? This affects the choice of embedding model.
 3. **Breaking change detection**: when `update_contract` significantly changes `response_schema`, should there be an automatic warning to the agent (similar to duplicate check), or just overwrite without validation in v1?
 4. **Rate limit / resource guard**: since accessed by many agents concurrently via HTTP, do we need a per-token request limit to prevent one agent from "spamming" create/search excessively?

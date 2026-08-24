@@ -14,6 +14,10 @@ services:
       APP__DATABASE__PATH: /data/ledgapi.db
       APP__EMBED__CACHE_DIR: /data/.cache/fastembed
       APP__LOG__FORMAT: json
+      APP__AUTH__INITIAL_ADMIN_USERNAME: ${INITIAL_USERNAME:-admin}
+      APP__AUTH__INITIAL_ADMIN_PASSWORD: ${INITIAL_PASSWORD:?set INITIAL_PASSWORD}
+      APP__AUTH__ISSUER: ${APP_ISSUER:-http://localhost:8080}
+      APP__AUTH__COOKIE_SECURE: ${APP_COOKIE_SECURE:-false}
 
 volumes:
   ledgapi-data:

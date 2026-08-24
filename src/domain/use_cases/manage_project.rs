@@ -1,5 +1,7 @@
 //! Project create + list use cases.
 
+use crate::domain::audit::{AuditAction, AuditResource};
+use crate::domain::auth::Principal;
 use crate::domain::errors::DomainError;
 use crate::domain::ports::Repos;
 use crate::domain::project::{Project, ProjectCreate, ProjectSummary};
@@ -13,6 +15,25 @@ pub async fn create(repos: &dyn Repos, input: ProjectCreate) -> Result<Project, 
 /// List all projects with contract counts.
 pub async fn list(repos: &dyn Repos) -> Result<Vec<ProjectSummary>, DomainError> {
     repos.projects().list_with_counts().await
+}
+
+pub async fn create_with_actor(
+    repos: &dyn Repos,
+    principal: &Principal,
+    input: ProjectCreate,
+) -> Result<Project, DomainError> {
+    principal.require_scope("ledgapi:write")?;
+    let project = create(repos, input).await?;
+    crate::domain::use_cases::audit::record(
+        repos,
+        principal,
+        AuditAction::Create,
+        AuditResource::Project,
+        Some(project.id),
+        serde_json::json!({"slug": project.slug, "name": project.name}),
+    )
+    .await?;
+    Ok(project)
 }
 
 #[cfg(test)]

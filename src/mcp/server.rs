@@ -3,10 +3,10 @@
 //! POST /mcp — JSON-RPC request body, JSON-RPC response (or SSE-wrapped).
 //! Bearer auth enforced by middleware (set up at router level).
 
+use crate::domain::auth::Principal;
 use crate::domain::errors::DomainError;
 use crate::mcp::tools::ToolContext;
 use crate::state::AppState;
-use axum::Json;
 use axum::extract::{Extension, Request};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
@@ -50,6 +50,16 @@ pub struct JsonRpcError {
 
 /// Top-level handler. Called by the router after auth middleware.
 pub async fn handle(Extension(state): Extension<AppState>, req: Request) -> Response {
+    let principal = req.extensions().get::<Principal>().cloned();
+    let Some(principal) = principal else {
+        return respond_error(
+            None,
+            StatusCode::UNAUTHORIZED,
+            json!({"code": -32001, "message": "authentication required"}),
+            &state,
+        )
+        .await;
+    };
     // Body parsing with explicit size limit.
     let Ok(bytes) = axum::body::to_bytes(req.into_body(), MAX_BODY_BYTES).await else {
         return respond_error(
@@ -61,7 +71,7 @@ pub async fn handle(Extension(state): Extension<AppState>, req: Request) -> Resp
         .await;
     };
 
-    let Ok(request) = serde_json::from_slice::<JsonRpcRequest>(&bytes) else {
+    let Ok(value) = serde_json::from_slice::<Value>(&bytes) else {
         // JSON-RPC convention: parse errors use 200 with error frame.
         return respond_error(
             None,
@@ -72,6 +82,26 @@ pub async fn handle(Extension(state): Extension<AppState>, req: Request) -> Resp
         .await;
     };
 
+    let is_json_rpc_2 = value.get("jsonrpc").and_then(Value::as_str) == Some("2.0");
+    let Ok(request) = serde_json::from_value::<JsonRpcRequest>(value) else {
+        return respond_error(
+            None,
+            StatusCode::OK,
+            json!({"code": -32600, "message": "invalid request"}),
+            &state,
+        )
+        .await;
+    };
+    if !is_json_rpc_2 {
+        return respond_error(
+            request.id,
+            StatusCode::OK,
+            json!({"code": -32600, "message": "invalid request"}),
+            &state,
+        )
+        .await;
+    }
+
     let id = request.id.clone().unwrap_or(Value::Null);
 
     // Notifications have no id → no JSON-RPC response (HTTP 204).
@@ -80,12 +110,13 @@ pub async fn handle(Extension(state): Extension<AppState>, req: Request) -> Resp
         return StatusCode::NO_CONTENT.into_response();
     }
 
-    let response = dispatch(&state, request).await;
+    let response = dispatch(&state, principal, request).await;
     respond(&state, id, response).await
 }
 
 async fn dispatch(
     state: &AppState,
+    principal: Principal,
     req: JsonRpcRequest,
 ) -> Result<Value, (i32, String, Option<Value>)> {
     match req.method.as_str() {
@@ -96,7 +127,7 @@ async fn dispatch(
             Ok(Value::Null)
         }
         "tools/list" => Ok(tools_list_response(state)),
-        "tools/call" => tools_call_dispatch(state, req.params).await,
+        "tools/call" => tools_call_dispatch(state, principal, req.params).await,
         _ => Err((-32601, format!("method not found: {}", req.method), None)),
     }
 }
@@ -126,6 +157,7 @@ fn tools_list_response(state: &AppState) -> Value {
 
 async fn tools_call_dispatch(
     state: &AppState,
+    principal: Principal,
     params: Value,
 ) -> Result<Value, (i32, String, Option<Value>)> {
     let Some(name) = params.get("name").and_then(|v| v.as_str()) else {
@@ -140,13 +172,14 @@ async fn tools_call_dispatch(
         ));
     };
 
-    let ctx = build_tool_context(state, &arguments).await?;
+    let ctx = build_tool_context(state, principal, &arguments).await?;
 
     invoke_tool(tool, ctx, arguments).await
 }
 
 async fn build_tool_context(
     state: &AppState,
+    principal: Principal,
     arguments: &Value,
 ) -> Result<ToolContext, (i32, String, Option<Value>)> {
     // Resolve project_slug from arguments (every tool except
@@ -177,6 +210,7 @@ async fn build_tool_context(
         project_slug: project_slug.unwrap_or_default(),
         project_id,
         state: Arc::new(state.clone()),
+        principal,
     })
 }
 
@@ -282,13 +316,22 @@ async fn respond_bytes(_state: &AppState, body: Vec<u8>) -> Response {
 pub async fn handle_sse(
     Extension(state): Extension<AppState>,
     headers: HeaderMap,
-    Json(req): Json<JsonRpcRequest>,
+    req: Request,
 ) -> Response {
+    let Some(principal) = req.extensions().get::<Principal>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Ok(bytes) = axum::body::to_bytes(req.into_body(), MAX_BODY_BYTES).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(req) = serde_json::from_slice::<JsonRpcRequest>(&bytes) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
     let id = req.id.clone().unwrap_or(Value::Null);
     if req.id.is_none() {
         return StatusCode::NO_CONTENT.into_response();
     }
-    let value = dispatch(&state, req).await;
+    let value = dispatch(&state, principal, req).await;
     let response = match value {
         Ok(v) => JsonRpcResponse { jsonrpc: "2.0", id, result: Some(v), error: None },
         Err((code, message, data)) => JsonRpcResponse {
@@ -299,7 +342,12 @@ pub async fn handle_sse(
         },
     };
     let body = serde_json::to_string(&response).unwrap_or_default();
-    let sse = format!("event: message\ndata: {body}\n\n");
+    let sse = format!(
+        "event: message
+data: {body}
+
+"
+    );
     let mut resp = (StatusCode::OK, sse).into_response();
     if headers
         .get(header::ACCEPT)

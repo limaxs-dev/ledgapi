@@ -2,8 +2,8 @@
 
 use crate::core::id::Id;
 use crate::domain::contract::{
-    AuthType, Contract, ContractCreate, ContractSummary, ContractUpdate, Method, Status,
-    normalize_path,
+    AuthType, Contract, ContractCreate, ContractExample, ContractExampleInput, ContractSummary,
+    ContractUpdate, ExampleKind, Method, Status, normalize_path,
 };
 use crate::domain::errors::DomainError;
 use crate::domain::ports::{ContractRepo, ListContractsFilter, SearchResult};
@@ -61,7 +61,9 @@ fn parse_tags(s: String) -> Result<Vec<String>, DomainError> {
 }
 
 #[async_trait]
+#[allow(clippy::too_many_lines)]
 impl ContractRepo for SqliteContractRepo {
+    #[allow(clippy::too_many_lines)]
     async fn create(
         &self,
         project_id: Id,
@@ -83,68 +85,28 @@ impl ContractRepo for SqliteContractRepo {
                 let auth = input.auth_type.as_deref().map(AuthType::parse_or_default);
                 let tags = input.tags.clone().unwrap_or_default();
 
-                c.execute(
-                    "INSERT INTO contracts (
-                        id, project_id, group_id, method, path, summary, description,
-                        request_headers, request_params, request_body_schema, request_example,
-                        response_schema, response_example, auth_type, status, tags,
-                        created_at, updated_at
-                    ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)",
-                    params![
-                        id.to_string(),
-                        project_id.to_string(),
-                        group_id.map(|g| g.to_string()),
-                        input.method.as_str(),
-                        path,
-                        input.summary,
-                        input.description,
-                        json_to_text(input.request_headers.as_ref()),
-                        json_to_text(input.request_params.as_ref()),
-                        json_to_text(input.request_body_schema.as_ref()),
-                        json_to_text(input.request_example.as_ref()),
-                        input.response_schema.to_string(),
-                        json_to_text(input.response_example.as_ref()),
-                        auth.map(AuthType::as_str),
-                        status.as_str(),
-                        serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_owned()),
-                        now,
-                        now,
-                    ],
-                )
-                .map_err(|e| match e {
-                    rusqlite::Error::SqliteFailure(err, _)
-                        if err.code == rusqlite::ErrorCode::ConstraintViolation =>
-                    {
-                        DomainError::DuplicateKey {
-                            resource: "contract",
-                            key: format!("{} {}", input.method, path),
-                        }
-                    }
-                    _ => DomainError::Internal(e.to_string()),
-                })?;
+                let (examples, legacy_request, legacy_response) = prepare_examples(&input, now)?;
 
-                Ok(Contract {
+                let contract = build_contract(
                     id,
                     project_id,
                     group_id,
-                    method: input.method,
+                    input,
                     path,
-                    summary: input.summary,
-                    description: input.description,
-                    request_headers: input.request_headers,
-                    request_params: input.request_params,
-                    request_body_schema: input.request_body_schema,
-                    request_example: input.request_example,
-                    response_schema: input.response_schema,
-                    response_example: input.response_example,
-                    auth_type: auth,
                     status,
                     tags,
-                    created_at: OffsetDateTime::from_unix_timestamp(now)
-                        .unwrap_or(OffsetDateTime::UNIX_EPOCH),
-                    updated_at: OffsetDateTime::from_unix_timestamp(now)
-                        .unwrap_or(OffsetDateTime::UNIX_EPOCH),
-                })
+                    legacy_request,
+                    legacy_response,
+                    examples,
+                    auth,
+                    now,
+                );
+                let tx = c.transaction().map_err(|e| DomainError::Internal(e.to_string()))?;
+                insert_contract(&tx, &contract)?;
+                insert_examples(&tx, contract.id, &contract.examples)?;
+                tx.commit().map_err(|e| DomainError::Internal(e.to_string()))?;
+
+                Ok(contract)
             })
         })
         .await
@@ -177,6 +139,29 @@ impl ContractRepo for SqliteContractRepo {
                 let current = load_contract(c, project_id, contract_id)?
                     .ok_or(DomainError::NotFound { resource: "contract" })?;
 
+                let replacement_examples = patch.examples.as_deref().map(|examples| {
+                    examples_from_input(examples, OffsetDateTime::now_utc().unix_timestamp())
+                });
+                let legacy_request = match &replacement_examples {
+                    Some(examples) => examples.first().map(|example| example.request.clone()),
+                    None => patch.request_example.clone().or(current.request_example.clone()),
+                };
+                let legacy_response = match &replacement_examples {
+                    Some(examples) => examples.first().map(|example| example.response.clone()),
+                    None => patch.response_example.clone().or(current.response_example.clone()),
+                };
+                let synced_examples = if replacement_examples.is_some() {
+                    replacement_examples.clone()
+                } else if !current.examples.is_empty()
+                    && (patch.request_example.is_some() || patch.response_example.is_some())
+                {
+                    let mut examples = current.examples.clone();
+                    examples[0].request = legacy_request.clone().unwrap_or_default();
+                    examples[0].response = legacy_response.clone().unwrap_or_default();
+                    Some(examples)
+                } else {
+                    None
+                };
                 let merged = Contract {
                     id: current.id,
                     project_id: current.project_id,
@@ -188,9 +173,10 @@ impl ContractRepo for SqliteContractRepo {
                     request_headers: patch.request_headers.or(current.request_headers),
                     request_params: patch.request_params.or(current.request_params),
                     request_body_schema: patch.request_body_schema.or(current.request_body_schema),
-                    request_example: patch.request_example.or(current.request_example),
+                    request_example: legacy_request.clone(),
                     response_schema: patch.response_schema.unwrap_or(current.response_schema),
-                    response_example: patch.response_example.or(current.response_example),
+                    response_example: legacy_response.clone(),
+                    examples: synced_examples.clone().unwrap_or(current.examples),
                     auth_type: patch.auth_type.as_deref().map(AuthType::parse_or_default).or(current.auth_type),
                     status: match patch.status.as_deref() {
                         Some(s) => Status::parse(s)
@@ -202,7 +188,11 @@ impl ContractRepo for SqliteContractRepo {
                     updated_at: OffsetDateTime::now_utc(),
                 };
 
-                c.execute(
+                if let Some(examples) = patch.examples.as_deref() {
+                    validate_examples(examples)?;
+                }
+                let tx = c.transaction().map_err(|e| DomainError::Internal(e.to_string()))?;
+                tx.execute(
                     "UPDATE contracts SET
                         group_id=?1, method=?2, path=?3, summary=?4, description=?5,
                         request_headers=?6, request_params=?7, request_body_schema=?8, request_example=?9,
@@ -218,9 +208,9 @@ impl ContractRepo for SqliteContractRepo {
                         json_to_text(merged.request_headers.as_ref()),
                         json_to_text(merged.request_params.as_ref()),
                         json_to_text(merged.request_body_schema.as_ref()),
-                        json_to_text(merged.request_example.as_ref()),
+                        json_to_text(legacy_request.as_ref()),
                         merged.response_schema.to_string(),
-                        json_to_text(merged.response_example.as_ref()),
+                        json_to_text(legacy_response.as_ref()),
                         merged.auth_type.map(AuthType::as_str),
                         merged.status.as_str(),
                         serde_json::to_string(&merged.tags).unwrap_or_else(|_| "[]".to_owned()),
@@ -233,7 +223,7 @@ impl ContractRepo for SqliteContractRepo {
                 // API-006: detect the race where the contract was deleted
                 // between load_contract and UPDATE. Returning Ok here would
                 // let the use case upsert an orphan embedding row.
-                let n = c
+                let n = tx
                     .query_row(
                         "SELECT COUNT(*) FROM contracts WHERE id = ?1",
                         [merged.id.to_string()],
@@ -243,6 +233,15 @@ impl ContractRepo for SqliteContractRepo {
                 if n == 0 {
                     return Err(DomainError::NotFound { resource: "contract" });
                 }
+                if synced_examples.is_some() {
+                    tx.execute(
+                        "DELETE FROM contract_examples WHERE contract_id = ?1",
+                        [merged.id.to_string()],
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                    insert_examples(&tx, merged.id, synced_examples.as_deref().unwrap_or_default())?;
+                }
+                tx.commit().map_err(|e| DomainError::Internal(e.to_string()))?;
 
                 Ok(merged)
             })
@@ -453,6 +452,238 @@ impl ContractRepo for SqliteContractRepo {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn build_contract(
+    id: Id,
+    project_id: Id,
+    group_id: Option<Id>,
+    input: ContractCreate,
+    path: String,
+    status: Status,
+    tags: Vec<String>,
+    request_example: Option<serde_json::Value>,
+    response_example: Option<serde_json::Value>,
+    examples: Vec<ContractExample>,
+    auth_type: Option<AuthType>,
+    now: i64,
+) -> Contract {
+    Contract {
+        id,
+        project_id,
+        group_id,
+        method: input.method,
+        path,
+        summary: input.summary,
+        description: input.description,
+        request_headers: input.request_headers,
+        request_params: input.request_params,
+        request_body_schema: input.request_body_schema,
+        request_example,
+        response_schema: input.response_schema,
+        response_example,
+        examples,
+        auth_type,
+        status,
+        tags,
+        created_at: OffsetDateTime::from_unix_timestamp(now).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+        updated_at: OffsetDateTime::from_unix_timestamp(now).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+    }
+}
+
+fn insert_contract(tx: &rusqlite::Transaction<'_>, contract: &Contract) -> Result<(), DomainError> {
+    tx.execute(
+        "INSERT INTO contracts (
+            id, project_id, group_id, method, path, summary, description,
+            request_headers, request_params, request_body_schema, request_example,
+            response_schema, response_example, auth_type, status, tags,
+            created_at, updated_at
+        ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)",
+        params![
+            contract.id.to_string(),
+            contract.project_id.to_string(),
+            contract.group_id.map(|g| g.to_string()),
+            contract.method.as_str(),
+            contract.path,
+            contract.summary,
+            contract.description,
+            json_to_text(contract.request_headers.as_ref()),
+            json_to_text(contract.request_params.as_ref()),
+            json_to_text(contract.request_body_schema.as_ref()),
+            json_to_text(contract.request_example.as_ref()),
+            contract.response_schema.to_string(),
+            json_to_text(contract.response_example.as_ref()),
+            contract.auth_type.map(AuthType::as_str),
+            contract.status.as_str(),
+            serde_json::to_string(&contract.tags).unwrap_or_else(|_| "[]".to_owned()),
+            contract.created_at.unix_timestamp(),
+            contract.updated_at.unix_timestamp(),
+        ],
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::SqliteFailure(err, _)
+            if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+        {
+            DomainError::DuplicateKey {
+                resource: "contract",
+                key: format!("{} {}", contract.method, contract.path),
+            }
+        }
+        _ => DomainError::Internal(e.to_string()),
+    })?;
+    Ok(())
+}
+
+fn prepare_examples(
+    input: &ContractCreate,
+    now: i64,
+) -> Result<(Vec<ContractExample>, Option<serde_json::Value>, Option<serde_json::Value>), DomainError>
+{
+    let legacy_examples = match (&input.request_example, &input.response_example) {
+        (Some(request), Some(response)) if input.examples.is_none() => {
+            vec![ContractExampleInput {
+                name: "default".to_owned(),
+                kind: crate::domain::contract::ExampleKind::Positive,
+                status_code: 200,
+                request: request.clone(),
+                response: response.clone(),
+            }]
+        }
+        _ => Vec::new(),
+    };
+    let example_inputs = input.examples.as_deref().unwrap_or(&legacy_examples);
+    validate_examples(example_inputs)?;
+    let examples = examples_from_input(example_inputs, now);
+    let legacy_request = if input.examples.is_some() {
+        examples.first().map(|example| example.request.clone())
+    } else {
+        input.request_example.clone()
+    };
+    let legacy_response = if input.examples.is_some() {
+        examples.first().map(|example| example.response.clone())
+    } else {
+        input.response_example.clone()
+    };
+    Ok((examples, legacy_request, legacy_response))
+}
+
+fn validate_examples(examples: &[ContractExampleInput]) -> Result<(), DomainError> {
+    if examples.len() > 50 {
+        return Err(DomainError::Validation {
+            field: "examples".to_owned(),
+            message: "must contain at most 50 entries".to_owned(),
+        });
+    }
+    let mut names = std::collections::HashSet::with_capacity(examples.len());
+    for example in examples {
+        example.validate("examples")?;
+        if !names.insert(example.name.trim().to_owned()) {
+            return Err(DomainError::Validation {
+                field: "examples".to_owned(),
+                message: "names must be unique per contract".to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn examples_from_input(examples: &[ContractExampleInput], now: i64) -> Vec<ContractExample> {
+    examples
+        .iter()
+        .enumerate()
+        .map(|(ordinal, example)| ContractExample {
+            id: Id::new(),
+            name: example.name.trim().to_owned(),
+            kind: example.kind,
+            status_code: example.status_code,
+            request: example.request.clone(),
+            response: example.response.clone(),
+            ordinal: ordinal as i64,
+            created_at: OffsetDateTime::from_unix_timestamp(now)
+                .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+            updated_at: OffsetDateTime::from_unix_timestamp(now)
+                .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+        })
+        .collect()
+}
+
+fn insert_examples(
+    tx: &rusqlite::Transaction<'_>,
+    contract_id: Id,
+    examples: &[ContractExample],
+) -> Result<(), DomainError> {
+    for example in examples {
+        tx.execute(
+            "INSERT INTO contract_examples
+                (id, contract_id, name, kind, status_code, request, response, ordinal, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                example.id.to_string(),
+                contract_id.to_string(),
+                example.name,
+                example.kind.as_str(),
+                i64::from(example.status_code),
+                example.request.to_string(),
+                example.response.to_string(),
+                example.ordinal,
+                example.created_at.unix_timestamp(),
+                example.updated_at.unix_timestamp(),
+            ],
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::SqliteFailure(err, _)
+                if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+            {
+                DomainError::DuplicateKey {
+                    resource: "contract example",
+                    key: example.name.clone(),
+                }
+            }
+            _ => DomainError::Internal(e.to_string()),
+        })?;
+    }
+    Ok(())
+}
+
+fn load_examples(
+    c: &rusqlite::Connection,
+    contract_id: Id,
+) -> Result<Vec<ContractExample>, DomainError> {
+    let mut stmt = c
+        .prepare(
+            "SELECT id, name, kind, status_code, request, response, ordinal, created_at, updated_at
+             FROM contract_examples WHERE contract_id = ?1 ORDER BY ordinal ASC, id ASC",
+        )
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+    let rows = stmt
+        .query_map([contract_id.to_string()], |r| {
+            let id: String = r.get(0)?;
+            let kind: String = r.get(2)?;
+            let status_code: i64 = r.get(3)?;
+            let request: String = r.get(4)?;
+            let response: String = r.get(5)?;
+            let created_at: i64 = r.get(7)?;
+            let updated_at: i64 = r.get(8)?;
+            Ok(ContractExample {
+                id: Id::parse(&id).ok_or(rusqlite::Error::InvalidQuery)?,
+                name: r.get(1)?,
+                kind: ExampleKind::parse(&kind).ok_or(rusqlite::Error::InvalidQuery)?,
+                status_code: u16::try_from(status_code)
+                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                request: serde_json::from_str(&request)
+                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                response: serde_json::from_str(&response)
+                    .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                ordinal: r.get(6)?,
+                created_at: OffsetDateTime::from_unix_timestamp(created_at)
+                    .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+                updated_at: OffsetDateTime::from_unix_timestamp(updated_at)
+                    .unwrap_or(OffsetDateTime::UNIX_EPOCH),
+            })
+        })
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+    rows.map(|row| row.map_err(|e| DomainError::Internal(e.to_string()))).collect()
+}
+
 fn row_to_summary(r: &rusqlite::Row<'_>) -> rusqlite::Result<ContractSummary> {
     let id: String = r.get(0)?;
     let method: String = r.get(1)?;
@@ -533,6 +764,7 @@ fn load_contract(
         request_example: parse_json_opt(row.10)?,
         response_schema: parse_json_required(row.11)?,
         response_example: parse_json_opt(row.12)?,
+        examples: load_examples(c, contract_id)?,
         auth_type: parse_auth_type_opt(row.13)?,
         status: parse_status(&row.14)?,
         tags: parse_tags(row.15)?,
@@ -578,6 +810,7 @@ mod tests {
             request_example: None,
             response_schema: serde_json::json!({"type": "object"}),
             response_example: None,
+            examples: None,
             auth_type: None,
             status: None,
             tags: None,
@@ -593,6 +826,93 @@ mod tests {
         let c = repo.create(pid, None, &make_create("/api/users", "List users")).await.unwrap();
         let found = repo.find_by_id(pid, c.id).await.unwrap();
         assert_eq!(found.path, "/api/users");
+    }
+
+    #[tokio::test]
+    async fn multiple_examples_round_trip_and_replace() {
+        let (db, pid) = setup().await;
+        let repo = SqliteContractRepo { db };
+        let mut input = make_create("/api/users", "List users");
+        input.examples = Some(vec![
+            ContractExampleInput {
+                name: "happy-path".to_owned(),
+                kind: crate::domain::contract::ExampleKind::Positive,
+                status_code: 200,
+                request: serde_json::json!({"page": 1}),
+                response: serde_json::json!({"users": [{"id": 1}]}),
+            },
+            ContractExampleInput {
+                name: "validation-error".to_owned(),
+                kind: crate::domain::contract::ExampleKind::Negative,
+                status_code: 422,
+                request: serde_json::json!({"page": "bad"}),
+                response: serde_json::json!({"error": "invalid page"}),
+            },
+        ]);
+        let created = repo.create(pid, None, &input).await.unwrap();
+        assert_eq!(created.examples.len(), 2);
+        assert_eq!(created.examples[0].name, "happy-path");
+        let found = repo.find_by_id(pid, created.id).await.unwrap();
+        assert_eq!(found.examples, created.examples);
+
+        let patch = ContractUpdate {
+            examples: Some(vec![ContractExampleInput {
+                name: "only-case".to_owned(),
+                kind: crate::domain::contract::ExampleKind::Positive,
+                status_code: 201,
+                request: serde_json::json!({}),
+                response: serde_json::json!({"created": true}),
+            }]),
+            ..Default::default()
+        };
+        let updated = repo.update(pid, created.id, &patch, None).await.unwrap();
+        assert_eq!(updated.examples.len(), 1);
+        assert_eq!(updated.examples[0].name, "only-case");
+        assert_eq!(repo.find_by_id(pid, created.id).await.unwrap().examples, updated.examples);
+    }
+
+    #[tokio::test]
+    async fn duplicate_example_names_are_rejected() {
+        let (db, pid) = setup().await;
+        let repo = SqliteContractRepo { db };
+        let mut input = make_create("/api/users", "List users");
+        let example = ContractExampleInput {
+            name: "same".to_owned(),
+            kind: crate::domain::contract::ExampleKind::Positive,
+            status_code: 200,
+            request: serde_json::json!({}),
+            response: serde_json::json!({}),
+        };
+        input.examples = Some(vec![example.clone(), example]);
+        assert!(matches!(
+            repo.create(pid, None, &input).await,
+            Err(DomainError::Validation { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn deleting_contract_cascades_examples() {
+        let (db, pid) = setup().await;
+        let repo = SqliteContractRepo { db: db.clone() };
+        let mut input = make_create("/api/users", "List users");
+        input.examples = Some(vec![ContractExampleInput {
+            name: "happy-path".to_owned(),
+            kind: crate::domain::contract::ExampleKind::Positive,
+            status_code: 200,
+            request: serde_json::json!({}),
+            response: serde_json::json!({}),
+        }]);
+        let created = repo.create(pid, None, &input).await.unwrap();
+        repo.delete(pid, created.id).await.unwrap();
+        let count: i64 = db.with_conn(|c| {
+            c.query_row(
+                "SELECT COUNT(*) FROM contract_examples WHERE contract_id = ?1",
+                [created.id.to_string()],
+                |r| r.get(0),
+            )
+            .unwrap()
+        });
+        assert_eq!(count, 0);
     }
 
     #[tokio::test]

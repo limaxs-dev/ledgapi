@@ -1,6 +1,8 @@
 //! `delete_contract` — also removes the embedding row.
 
 use crate::core::id::Id;
+use crate::domain::audit::{AuditAction, AuditResource};
+use crate::domain::auth::Principal;
 use crate::domain::errors::DomainError;
 use crate::domain::ports::Repos;
 
@@ -20,6 +22,25 @@ pub async fn execute(
         tracing::warn!(error = %e, contract_id = %contract_id, "embedding delete failed");
     }
     Ok(())
+}
+
+pub async fn execute_with_actor(
+    repos: &dyn Repos,
+    principal: &Principal,
+    project_slug: crate::domain::project::ProjectSlug,
+    contract_id: Id,
+) -> Result<(), DomainError> {
+    principal.require_scope("ledgapi:write")?;
+    execute(repos, project_slug, contract_id).await?;
+    crate::domain::use_cases::audit::record(
+        repos,
+        principal,
+        AuditAction::Delete,
+        AuditResource::Contract,
+        Some(contract_id),
+        serde_json::json!({"contract_id": contract_id}),
+    )
+    .await
 }
 
 #[cfg(test)]

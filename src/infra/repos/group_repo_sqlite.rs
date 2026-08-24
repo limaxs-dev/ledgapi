@@ -3,7 +3,7 @@
 use crate::core::id::Id;
 use crate::domain::errors::DomainError;
 use crate::domain::group::{Group, GroupRef, GroupSummary};
-use crate::domain::ports::GroupRepo;
+use crate::domain::ports::{GroupRepo, GroupResolution};
 use crate::infra::db::Db;
 use crate::infra::repos::project_repo_sqlite::parse_id;
 use async_trait::async_trait;
@@ -55,11 +55,51 @@ impl GroupRepo for SqliteGroupRepo {
         .map_err(|e| DomainError::Internal(format!("join: {e}")))?
     }
 
-    async fn find_by_name(
+    async fn resolve_with_created(
         &self,
         project_id: Id,
-        name: &str,
-    ) -> Result<Option<Group>, DomainError> {
+        input: &GroupRef,
+    ) -> Result<GroupResolution, DomainError> {
+        let db = self.db.clone();
+        let input = input.clone();
+        tokio::task::spawn_blocking(move || {
+            db.with_conn(|c| {
+                let id = Id::new();
+                let inserted = c
+                    .execute(
+                        "INSERT OR IGNORE INTO groups (id, project_id, name, description) VALUES (?1, ?2, ?3, ?4)",
+                        params![id.to_string(), project_id.to_string(), input.name, input.description],
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                if inserted != 0 {
+                    return Ok(GroupResolution {
+                        group: Group { id, project_id, name: input.name, description: input.description },
+                        created: true,
+                    });
+                }
+                let existing = c
+                    .query_row(
+                        "SELECT id, name, description FROM groups WHERE project_id = ?1 AND name = ?2",
+                        params![project_id.to_string(), input.name],
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+                    )
+                    .map_err(|e| DomainError::Internal(e.to_string()))?;
+                Ok(GroupResolution {
+                    group: Group {
+                        id: parse_id(&existing.0)?,
+                        project_id,
+                        name: existing.1,
+                        description: existing.2,
+                    },
+                    created: false,
+                })
+            })
+        })
+        .await
+        .map_err(|e| DomainError::Internal(format!("join: {e}")))?
+    }
+
+    async fn find_by_name(&self, project_id: Id, name: &str) -> Result<Option<Group>, DomainError> {
         let db = self.db.clone();
         let name = name.to_owned();
         tokio::task::spawn_blocking(move || {
@@ -69,17 +109,20 @@ impl GroupRepo for SqliteGroupRepo {
                         "SELECT id, name, description FROM groups
                          WHERE project_id = ?1 AND name = ?2",
                         params![project_id.to_string(), name],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+                        |r| {
+                            Ok((
+                                r.get::<_, String>(0)?,
+                                r.get::<_, String>(1)?,
+                                r.get::<_, Option<String>>(2)?,
+                            ))
+                        },
                     )
                     .optional()
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 let group = match row {
-                    Some((id, n, desc)) => Some(Group {
-                        id: parse_id(&id)?,
-                        project_id,
-                        name: n,
-                        description: desc,
-                    }),
+                    Some((id, n, desc)) => {
+                        Some(Group { id: parse_id(&id)?, project_id, name: n, description: desc })
+                    }
                     None => None,
                 };
                 Ok(group)
