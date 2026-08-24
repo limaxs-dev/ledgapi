@@ -1,8 +1,8 @@
 # ledgapi
 
-<p align="center">
+<div align="center">
   <img src="logo.png" alt="ledgapi logo" width="320">
-</p>
+</div>
 
 > **API contracts, remembered by your agents.**
 
