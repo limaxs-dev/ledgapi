@@ -186,3 +186,4 @@ humantime-serde = { workspace = true }
 serde_json = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 http-body-util = "0.1"
+archaven = "1.1"

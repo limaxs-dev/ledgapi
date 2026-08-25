@@ -2,7 +2,6 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 CARGO     ?= cargo
-ARCHAVEN  ?= archaven
 
 .PHONY: help
 help: ## Show this help
@@ -33,8 +32,8 @@ deny: ## cargo deny check
 	$(CARGO) deny check
 
 .PHONY: archaven
-archaven: ## archaven check
-	$(ARCHAVEN) check
+archaven: ## archaven declarative module-boundary check
+	$(CARGO) test -p ledgapi --test archaven
 
 .PHONY: ci
-ci: fmt-check clippy test architecture deny archaven ## full local CI surrogate
+ci: fmt-check clippy test architecture archaven deny ## full local CI surrogate
