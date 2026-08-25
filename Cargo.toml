@@ -32,7 +32,7 @@ rusqlite = { version = "0.32", features = ["bundled", "uuid"] }
 sqlite-vec = "0.1"          # verify exact version at implementation time; cargo adds may need adjustment
 
 # Embedding
-fastembed = { version = "5", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }
+fastembed = { version = "6", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }
 
 # MCP + schema
 schemars = { version = "0.8", features = ["derive", "uuid1"] }
