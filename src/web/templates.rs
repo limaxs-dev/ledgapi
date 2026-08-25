@@ -176,3 +176,66 @@ pub struct AuditPageRow {
     pub resource: String,
     pub created_at: String,
 }
+
+// -- Docs site -------------------------------------------------------------
+
+/// Sidebar nav tree, deserialized from `docs/content/sidebar.json`. The
+/// `path` field is patched in at startup from the URL map, not in the JSON.
+#[derive(Debug, Default, Clone, Serialize, serde::Deserialize)]
+pub struct SidebarFile {
+    pub groups: Vec<SidebarGroup>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, serde::Deserialize)]
+pub struct SidebarGroup {
+    pub label: String,
+    pub items: Vec<SidebarItem>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, serde::Deserialize)]
+pub struct SidebarItem {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub method: Option<String>,
+    #[serde(default)]
+    pub path: String,
+}
+
+/// One entry in the in-page table of contents.
+#[derive(Debug, Clone, Serialize)]
+pub struct TocEntry {
+    pub level: u8,
+    pub text: String,
+    pub id: String,
+}
+
+/// Docs home page. Renders the frontmatter as a hero, then the body.
+#[derive(Template)]
+#[template(path = "docs/home.html")]
+pub struct DocsHomeTpl<'a> {
+    pub title: &'a str,
+    pub page_title: &'a str,
+    pub page_description: &'a str,
+    pub username: &'a str,
+    pub sidebar: &'a SidebarFile,
+    pub current_id: &'a str,
+    pub body_html: &'a str,
+}
+
+/// Generic docs content page. Renders breadcrumb, H1, optional method badge,
+/// optional lede, the body, and the in-page TOC.
+#[derive(Template)]
+#[template(path = "docs/page.html")]
+pub struct DocsPageTpl<'a> {
+    pub title: &'a str,
+    pub page_title: &'a str,
+    pub page_description: &'a str,
+    pub method: Option<&'a str>,
+    pub username: &'a str,
+    pub sidebar: &'a SidebarFile,
+    pub current_id: &'a str,
+    pub group_label: &'a str,
+    pub toc: &'a [TocEntry],
+    pub body_html: &'a str,
+}

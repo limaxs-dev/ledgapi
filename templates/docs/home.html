@@ -1,0 +1,16 @@
+{% extends "docs/base_docs.html" %}
+{% block content %}
+<article class="docs-home">
+  <div class="docs-eyebrow">Self-hosted registry</div>
+  <h1 class="docs-h1 docs-h1-display">{{ page_title }}</h1>
+  <p class="docs-lede">{{ page_description }}</p>
+  <div class="docs-home-ctas">
+    <a class="btn btn-primary" href="/docs/getting-started/install">Read the docs</a>
+    <a class="btn btn-secondary" href="https://github.com/limaxs-dev/ledgapi" rel="noopener">View on GitHub</a>
+  </div>
+  <div class="docs-body">
+    {{ body_html|safe }}
+  </div>
+</article>
+{% endblock %}
+{% block toc_rail %}{% endblock %}

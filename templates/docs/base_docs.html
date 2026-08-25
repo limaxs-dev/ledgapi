@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title }}{% endblock %} - ledgapi docs</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="docs">
+  <header class="docs-topnav">
+    <a class="docs-brand" href="/docs">
+      <img src="/static/logo.svg" alt="ledgapi" class="docs-brand-logo">
+      <span>ledgapi</span>
+    </a>
+    <nav class="docs-nav">
+      <a href="/docs"{% if current_id == "home" %} class="active"{% endif %}>Docs</a>
+      <a href="/">Projects</a>
+      <a href="https://github.com/limaxs-dev/ledgapi" rel="noopener">GitHub</a>
+    </nav>
+    <div class="docs-nav-right">
+      <span class="docs-username">{{ username }}</span>
+    </div>
+  </header>
+  <div class="docs-frame">
+    <aside class="docs-sidebar">
+      {% for group in sidebar.groups %}
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-label">{{ group.label }}</div>
+        <ul class="docs-sidebar-list">
+          {% for item in group.items %}
+          <li>
+            <a href="{{ item.path }}"{% if item.id == current_id %} class="active"{% endif %}>
+              <span class="docs-sidebar-title">{{ item.title }}</span>
+              {% if item.method.is_some() %}
+                {% if item.method.as_deref() == Some("READ") %}
+                <span class="method-badge method-GET docs-sidebar-badge">READ</span>
+                {% else %}
+                <span class="method-badge method-POST docs-sidebar-badge">{{ item.method.as_deref().unwrap() }}</span>
+                {% endif %}
+              {% endif %}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </aside>
+    <main class="docs-main">
+      {% block content %}{% endblock %}
+    </main>
+    <aside class="docs-toc-rail">
+      {% block toc_rail %}{% endblock %}
+    </aside>
+  </div>
+</body>
+</html>

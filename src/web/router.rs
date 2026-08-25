@@ -40,6 +40,8 @@ pub fn router(state: AppState) -> Router {
         .route("/projects/{slug}/openapi.yml", get(openapi_export::yaml))
         .route("/admin/users", get(crate::web::admin::users).post(crate::web::admin::create_user))
         .route("/admin/audit", get(crate::web::admin::audit))
+        .route("/docs", get(crate::web::docs::home))
+        .route("/docs/{*rest}", get(crate::web::docs::page))
         .layer(from_fn(move |req, next| {
             crate::web::auth::require_web_auth(req, next, state_for_web_auth.clone())
         }));
@@ -82,8 +84,5 @@ async fn serve_css() -> impl IntoResponse {
 /// Serve the embedded brand logo as `image/svg+xml`.
 async fn serve_logo() -> impl IntoResponse {
     let svg = include_str!("../../logo.svg");
-    (
-        [("content-type", "image/svg+xml")],
-        svg.to_owned(),
-    )
+    ([("content-type", "image/svg+xml")], svg.to_owned())
 }

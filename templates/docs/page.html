@@ -1,0 +1,36 @@
+{% extends "docs/base_docs.html" %}
+{% block content %}
+<article class="docs-page">
+  <nav class="docs-breadcrumb">
+    <a href="/docs">Docs</a>
+    <span class="docs-breadcrumb-sep">/</span>
+    <span class="docs-breadcrumb-group">{{ group_label }}</span>
+    <span class="docs-breadcrumb-sep">/</span>
+    <span class="docs-breadcrumb-current">{{ page_title }}</span>
+  </nav>
+  <h1 class="docs-h1">
+    {% if method.is_some() %}
+    <span class="method-badge {% if method == Some("READ") %}method-GET{% else %}method-POST{% endif %}">{{ method.unwrap() }}</span>
+    {% endif %}
+    <code class="docs-h1-mono">{{ page_title }}</code>
+  </h1>
+  {% if !page_description.is_empty() %}
+  <p class="docs-lede">{{ page_description }}</p>
+  {% endif %}
+  <div class="docs-body">
+    {{ body_html|safe }}
+  </div>
+</article>
+{% endblock %}
+{% block toc_rail %}
+{% if !toc.is_empty() %}
+<div class="docs-toc-label">On this page</div>
+<ul class="docs-toc-list">
+  {% for entry in toc %}
+  <li class="docs-toc-l{{ entry.level }}">
+    <a href="#{{ entry.id }}">{{ entry.text }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

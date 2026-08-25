@@ -1,0 +1,51 @@
+{
+  "groups": [
+    {
+      "label": "Getting started",
+      "items": [
+        { "id": "install", "title": "Install", "file": "getting-started/install.md" },
+        { "id": "first-login", "title": "First login", "file": "getting-started/first-login.md" },
+        { "id": "connect-mcp", "title": "Connect an MCP client", "file": "getting-started/connect-mcp.md" },
+        { "id": "first-contract", "title": "Your first contract", "file": "getting-started/first-contract.md" }
+      ]
+    },
+    {
+      "label": "Concepts",
+      "items": [
+        { "id": "architecture", "title": "Architecture", "file": "concepts/architecture.md" },
+        { "id": "projects-and-groups", "title": "Projects and groups", "file": "concepts/projects-and-groups.md" },
+        { "id": "rag-and-duplicates", "title": "RAG and duplicate detection", "file": "concepts/rag-and-duplicates.md" },
+        { "id": "audit-log", "title": "Audit log", "file": "concepts/audit-log.md" }
+      ]
+    },
+    {
+      "label": "MCP tools",
+      "items": [
+        { "id": "list-projects", "title": "list_projects", "file": "mcp-tools/list-projects.md", "method": "READ" },
+        { "id": "create-project", "title": "create_project", "file": "mcp-tools/create-project.md", "method": "WRITE" },
+        { "id": "list-groups", "title": "list_groups", "file": "mcp-tools/list-groups.md", "method": "READ" },
+        { "id": "list-contracts", "title": "list_contracts", "file": "mcp-tools/list-contracts.md", "method": "READ" },
+        { "id": "get-contract-by-id", "title": "get_contract_by_id", "file": "mcp-tools/get-contract-by-id.md", "method": "READ" },
+        { "id": "search-contract", "title": "search_contract", "file": "mcp-tools/search-contract.md", "method": "READ" },
+        { "id": "create-contract", "title": "create_contract", "file": "mcp-tools/create-contract.md", "method": "WRITE" },
+        { "id": "update-contract", "title": "update_contract", "file": "mcp-tools/update-contract.md", "method": "WRITE" },
+        { "id": "delete-contract", "title": "delete_contract", "file": "mcp-tools/delete-contract.md", "method": "WRITE" },
+        { "id": "export-openapi", "title": "export_openapi", "file": "mcp-tools/export-openapi.md", "method": "READ" }
+      ]
+    },
+    {
+      "label": "Reference",
+      "items": [
+        { "id": "http-api", "title": "HTTP and UI endpoints", "file": "http-api.md" },
+        { "id": "auth", "title": "Authentication and OAuth 2.1", "file": "auth.md" },
+        { "id": "deployment", "title": "Deployment and env vars", "file": "deployment.md" }
+      ]
+    },
+    {
+      "label": "Release",
+      "items": [
+        { "id": "changelog", "title": "Changelog", "file": "changelog.md" }
+      ]
+    }
+  ]
+}

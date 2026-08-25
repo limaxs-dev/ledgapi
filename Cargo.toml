@@ -39,6 +39,8 @@ schemars = { version = "0.8", features = ["derive", "uuid1"] }
 
 # Web
 askama = "0.12"
+comrak = { version = "0.36", default-features = false }
+regex = "1"
 
 # Auth / crypto
 sha2 = "0.10"
@@ -166,6 +168,8 @@ sqlite-vec = { workspace = true }
 fastembed = { workspace = true }
 schemars = { workspace = true }
 askama = { workspace = true }
+comrak = { workspace = true }
+regex = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 subtle = { workspace = true }
