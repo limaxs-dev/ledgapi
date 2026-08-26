@@ -64,5 +64,5 @@ The `error` field is a stable machine-readable code. The `message` field is for 
 
 | Path | Description |
 |---|---|
-| `/static/logo.svg` | The monochrome brand mark. Uses `currentColor`. |
+| `/static/logo.png` | The brand logo (transparent PNG, embedded at compile time). |
 | `/static/style.css` | The product UI stylesheet. The docs site has its own stylesheet appended to this file. |

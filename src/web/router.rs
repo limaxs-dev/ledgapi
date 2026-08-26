@@ -65,7 +65,8 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(health::live))
         .route("/readyz", get(health::ready))
         .route("/static/style.css", get(serve_css))
-        .route("/static/logo.svg", get(serve_logo))
+        .route("/static/logo.png", get(serve_logo))
+        .route("/favicon.ico", get(serve_favicon))
         .fallback(handlers::not_found)
         .route(
             "/mcp",
@@ -81,8 +82,15 @@ async fn serve_css() -> impl IntoResponse {
     ([("content-type", "text/css")], css.to_owned())
 }
 
-/// Serve the embedded brand logo as `image/svg+xml`.
+/// Serve the embedded brand logo as `image/png`.
 async fn serve_logo() -> impl IntoResponse {
-    let svg = include_str!("../../logo.svg");
-    ([("content-type", "image/svg+xml")], svg.to_owned())
+    let png = include_bytes!("../../logo.png");
+    ([("content-type", "image/png")], axum::body::Bytes::from_static(png))
+}
+
+/// `/favicon.ico` — browsers (and some tools) hardcode this path. Redirect
+/// to the canonical `/static/logo.png` so the PNG remains the source of
+/// truth.
+async fn serve_favicon() -> impl IntoResponse {
+    axum::response::Redirect::permanent("/static/logo.png")
 }

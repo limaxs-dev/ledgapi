@@ -154,9 +154,7 @@ fn pre_process(md: &str) -> String {
         .replace_all(&out, |caps: &regex::Captures<'_>| {
             let kind = &caps[1];
             let body = &caps[2];
-            let body_indented =
-                body.lines().map(|l| format!("    {l}")).collect::<Vec<_>>().join("\n");
-            format!("<div class=\"callout callout-{kind}\">\n\n{body_indented}\n\n</div>")
+            format!("<div class=\"callout callout-{kind}\">\n\n{body}\n\n</div>")
         })
         .into_owned();
 
@@ -164,9 +162,7 @@ fn pre_process(md: &str) -> String {
     out = re_bento
         .replace_all(&out, |caps: &regex::Captures<'_>| {
             let body = &caps[1];
-            let body_indented =
-                body.lines().map(|l| format!("    {l}")).collect::<Vec<_>>().join("\n");
-            format!("<div class=\"bento\">\n\n{body_indented}\n\n</div>")
+            format!("<div class=\"bento\">\n\n{body}\n\n</div>")
         })
         .into_owned();
 

@@ -82,8 +82,40 @@ impl TestApp {
         raw
     }
 
+    /// Create a user with the given plaintext password (hashed via the real
+    /// password module) directly through the repos.
+    #[allow(dead_code)]
+    pub async fn seed_user_with_password(&self, username: &str, password: &str) {
+        use ledgapi::domain::auth::UserCreate;
+        self.state
+            .repos
+            .users()
+            .create(&UserCreate {
+                username: username.to_owned(),
+                password_hash: password::hash_password(password).unwrap(),
+                role: Role::SuperAdmin,
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Register the canonical `test-client` OAuth client used by flows.
+    #[allow(dead_code)]
+    pub async fn register_qa_client(&self) {
+        let client = OAuthClient {
+            client_id: "test-client".to_owned(),
+            client_name: "QA test client".to_owned(),
+            redirect_uris: vec!["http://127.0.0.1:9999/cb".to_owned()],
+            created_at: OffsetDateTime::now_utc(),
+        };
+        self.state.repos.oauth().register_client(&client).await.unwrap();
+    }
+
     #[allow(dead_code)]
     pub async fn seed_admin_session(&self) -> (String, String) {
+        if self.state.repos.users().find_by_username("admin").await.unwrap().is_none() {
+            self.seed_user_with_password("admin", "correct horse battery staple").await;
+        }
         let user = self.state.repos.users().find_by_username("admin").await.unwrap().unwrap();
         let raw_session = token::generate();
         let raw_csrf = token::generate();

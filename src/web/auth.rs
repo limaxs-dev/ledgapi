@@ -50,13 +50,19 @@ pub async fn login(Extension(state): Extension<AppState>, req: Request) -> Respo
     let user = match state.repos().users().find_by_username(form.username.trim()).await {
         Ok(Some(user)) => user,
         Ok(None) | Err(DomainError::NotFound { .. }) => {
-            return render_login(next, Some("invalid username or password"));
+            let attempted = form.username.trim().to_owned();
+            return render_login_with_username(
+                next,
+                Some("invalid username or password"),
+                &attempted,
+            );
         }
         Err(_) => return render_login(next, Some("invalid username or password")),
     };
     let valid = password::verify_password(&form.password, &user.password_hash).unwrap_or(false);
     if !valid || !user.active {
-        return render_login(next, Some("invalid username or password"));
+        let attempted = form.username.trim().to_owned();
+        return render_login_with_username(next, Some("invalid username or password"), &attempted);
     }
 
     let raw_session = token::generate();
@@ -169,7 +175,11 @@ pub async fn require_web_auth(
 }
 
 fn render_login(next: &str, error: Option<&str>) -> Response {
-    let tpl = LoginTpl { next, error };
+    render_login_with_username(next, error, "")
+}
+
+fn render_login_with_username(next: &str, error: Option<&str>, username: &str) -> Response {
+    let tpl = LoginTpl { next, error, username };
     let mut response = Html(tpl.render().unwrap_or_default()).into_response();
     response
         .headers_mut()
@@ -268,12 +278,19 @@ fn parse_form<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T, ()> {
     let mut pairs = Vec::new();
     for pair in text.split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-        let key = urlencoding::decode(key).map_err(|_| ())?.into_owned();
-        let value = urlencoding::decode(value).map_err(|_| ())?.into_owned();
+        let key = decode_form_component(key)?;
+        let value = decode_form_component(value)?;
         pairs.push((key, value));
     }
     serde_json::from_value(serde_json::Value::Object(
         pairs.into_iter().map(|(k, v)| (k, v.into())).collect(),
     ))
     .map_err(|_| ())
+}
+
+#[allow(clippy::result_unit_err)]
+pub fn decode_form_component(component: &str) -> Result<String, ()> {
+    urlencoding::decode(&component.replace('+', "%20"))
+        .map(std::borrow::Cow::into_owned)
+        .map_err(|_| ())
 }

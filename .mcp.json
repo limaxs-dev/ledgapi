@@ -3,6 +3,13 @@
     "ledgapi-local": {
       "type": "http",
       "url": "http://127.0.0.1:8080/mcp"
+    },
+    "stitch": {
+      "type": "http",
+      "url": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "AQ.Ab8RN6Lbmg5gcNmC_916Xagq043uc1FnpuAwzVhSKnlzj6fnSw"
+      }
     }
   }
 }

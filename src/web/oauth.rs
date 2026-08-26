@@ -450,8 +450,8 @@ fn parse_form<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T, ()> {
     for pair in text.split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         object.insert(
-            urlencoding::decode(key).map_err(|_| ())?.into_owned(),
-            urlencoding::decode(value).map_err(|_| ())?.into_owned().into(),
+            super::auth::decode_form_component(key)?,
+            super::auth::decode_form_component(value)?.into(),
         );
     }
     serde_json::from_value(serde_json::Value::Object(object)).map_err(|_| ())

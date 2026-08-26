@@ -40,9 +40,9 @@ fn no_unsafe_in_src() {
     for entry in walk("src") {
         let path = entry.path();
         let text = fs::read_to_string(&path).unwrap();
-        // Filter false positives: unsafe is forbidden by lint, but be tolerant in case
-        // of a future need.
-        let n = text.matches("unsafe").count();
+        // Count actual unsafe tokens, not the substring — comrak's
+        // `options.render.unsafe_` field name is a false positive.
+        let n = token_count_unsafe(&text);
         if n > 0 {
             // Allow the documented site in db/pool.rs.
             if !path.ends_with("db/pool.rs") {
@@ -51,6 +51,28 @@ fn no_unsafe_in_src() {
         }
     }
     assert!(occurrences.is_empty(), "unsafe code found outside db/pool.rs: {occurrences:?}");
+}
+
+/// Count `unsafe` keyword occurrences (word-boundary match), so identifiers
+/// like comrak's `render.unsafe_` field don't count.
+fn token_count_unsafe(text: &str) -> usize {
+    fn is_word(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || b == b'_'
+    }
+    let mut n = 0;
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while let Some(pos) = text[i..].find("unsafe") {
+        let start = i + pos;
+        let end = start + "unsafe".len();
+        let before_ok = start == 0 || !is_word(bytes[start - 1]);
+        let after_ok = end >= bytes.len() || !is_word(bytes[end]);
+        if before_ok && after_ok {
+            n += 1;
+        }
+        i = end;
+    }
+    n
 }
 
 fn read_src(dir: &str) -> String {
