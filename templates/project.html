@@ -5,8 +5,8 @@
 <p class="muted"><a href="/projects/{{ slug }}/openapi.yml">Download OpenAPI YAML</a></p>
 
 <form class="search-form" method="get" action="/projects/{{ slug }}/search">
-    <input type="text" name="q" placeholder="Search contracts…" required>
-    <select name="mode">
+    <input type="text" name="q" placeholder="Search contracts…" aria-label="Search contracts" required>
+    <select name="mode" aria-label="Search mode">
         <option value="hybrid" selected>hybrid</option>
         <option value="exact">exact</option>
         <option value="semantic">semantic</option>
@@ -14,37 +14,15 @@
     <button type="submit">Search</button>
 </form>
 
-<h2>Contracts ({{ contracts.len() }})</h2>
-{% if contracts.is_empty() %}
+<h2>Contracts ({{ total_contracts }})</h2>
+
+{% if group_tree_html.is_empty() %}
     <p class="muted">No contracts yet.</p>
 {% else %}
-<table>
-    <thead><tr><th>Method</th><th>Path</th><th>Summary</th><th>Status</th><th>Group</th></tr></thead>
-    <tbody>
-    {% for c in contracts %}
-        <tr>
-            <td><span class="method-badge method-{{ c.method }}">{{ c.method }}</span></td>
-            <td><a href="/projects/{{ slug }}/contracts/{{ c.id }}"><code>{{ c.path }}</code></a></td>
-            <td>{{ c.summary }}</td>
-            <td><span class="status-badge status-{{ c.status }}">{{ c.status }}</span></td>
-            <td>{{ c.group }}</td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="group-tree">
+{{ group_tree_html|safe }}
+</div>
 {% endif %}
 
-<h2>Groups</h2>
-{% if groups.is_empty() %}
-    <p class="muted">No groups defined.</p>
-{% else %}
-<table>
-    <thead><tr><th>Name</th><th class="num">Contracts</th></tr></thead>
-    <tbody>
-    {% for g in groups %}
-        <tr><td>{{ g.name }}</td><td class="num">{{ g.contract_count }}</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
-{% endif %}
+<p class="muted project-meta">{{ total_groups }} group{% if total_groups == 1 %}{% else %}s{% endif %} (including nested)</p>
 {% endblock %}

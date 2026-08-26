@@ -42,9 +42,13 @@ mod tests {
         )
         .await
         .unwrap();
-        let g = resolve(&repos, p.id, GroupRef { name: "Auth".to_owned(), description: None })
-            .await
-            .unwrap();
+        let g = resolve(
+            &repos,
+            p.id,
+            GroupRef { name: "Auth".to_owned(), description: None, parent_id: None },
+        )
+        .await
+        .unwrap();
         assert_eq!(g.name, "Auth");
     }
 
@@ -62,9 +66,13 @@ mod tests {
         )
         .await
         .unwrap();
-        let err = resolve(&repos, p.id, GroupRef { name: String::new(), description: None })
-            .await
-            .unwrap_err();
+        let err = resolve(
+            &repos,
+            p.id,
+            GroupRef { name: String::new(), description: None, parent_id: None },
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, DomainError::Validation { .. }));
     }
 }

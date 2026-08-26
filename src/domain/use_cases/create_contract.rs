@@ -58,7 +58,11 @@ async fn execute_inner(
                 .groups()
                 .resolve_with_created(
                     project.id,
-                    &crate::domain::group::GroupRef { name: name.clone(), description: None },
+                    &crate::domain::group::GroupRef {
+                        name: name.clone(),
+                        description: None,
+                        parent_id: None,
+                    },
                 )
                 .await?;
             if resolution.created {

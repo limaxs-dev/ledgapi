@@ -11,7 +11,10 @@ pub struct Group {
     pub id: Id,
     pub project_id: Id,
     pub name: String,
+    #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub parent_id: Option<Id>,
 }
 
 /// Summary used by `list_groups`.
@@ -20,6 +23,7 @@ pub struct GroupSummary {
     pub id: Id,
     pub name: String,
     pub contract_count: i64,
+    pub parent_id: Option<Id>,
 }
 
 /// Input for creating or resolving a group by name.
@@ -28,6 +32,12 @@ pub struct GroupRef {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Optional parent group id. `None` means root-level under the
+    /// project. Rendered as a string in JSON Schema because `Id` is not
+    /// a primitive type there.
+    #[serde(default)]
+    #[schemars(with = "Option<String>")]
+    pub parent_id: Option<Id>,
 }
 
 impl GroupRef {
@@ -65,7 +75,7 @@ mod tests {
 
     #[test]
     fn group_ref_rejects_empty() {
-        let g = GroupRef { name: String::new(), description: None };
+        let g = GroupRef { name: String::new(), description: None, parent_id: None };
         assert!(
             matches!(g.validate(), Err(DomainError::Validation { ref field, .. }) if field == "group_name")
         );
@@ -73,7 +83,7 @@ mod tests {
 
     #[test]
     fn group_ref_accepts_valid() {
-        let g = GroupRef { name: "Auth".to_owned(), description: None };
+        let g = GroupRef { name: "Auth".to_owned(), description: None, parent_id: None };
         assert!(g.validate().is_ok());
     }
 }

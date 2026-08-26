@@ -1,0 +1,19 @@
+<details class="group" data-depth="{{ depth }}" {% if depth == 0 %}open{% endif %}>
+    <summary>
+        <span class="group-name">{{ name }}</span>
+        <span class="group-count">({{ contracts.len() }})</span>
+    </summary>
+    {% if contracts.len() > 0 %}
+    <ol class="contract-list">
+        {% for c in contracts %}
+        <li class="contract-row">
+            <span class="method-badge method-{{ c.method }}">{{ c.method }}</span>
+            <a href="/projects/{{ slug }}/contracts/{{ c.id }}"><code>{{ c.path }}</code></a>
+            <span class="contract-summary">{{ c.summary }}</span>
+            <span class="status-badge status-{{ c.status }}">{{ c.status }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+    {{ children_html|safe }}
+</details>

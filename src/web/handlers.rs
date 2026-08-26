@@ -1,11 +1,14 @@
 //! Web route handlers — thin: parse, call use_case, render.
 
+use std::collections::HashMap;
+
 use crate::core::id::Id;
+use crate::domain::group::GroupSummary;
 use crate::domain::ports::ListContractsFilter;
 use crate::domain::project::ProjectSlug;
 use crate::state::AppState;
 use crate::web::templates::{
-    AuditRow, ContractExampleRow, ContractRow as CRow, ContractTpl, DashboardTpl, GroupRow,
+    AuditRow, ContractExampleRow, ContractRow as CRow, ContractTpl, DashboardTpl, GroupNode,
     NotFoundTpl, ProjectRow as PRow, ProjectTpl, SearchRow, SearchTpl,
 };
 use askama::Template;
@@ -52,30 +55,110 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
         .await
         .unwrap_or_default();
 
-    let contract_rows: Vec<CRow> = contracts
-        .into_iter()
-        .map(|c| CRow {
+    let total_contracts = contracts.len();
+    let total_groups = groups.len();
+
+    // Build the nested group tree. Group names are unique within a
+    // project (UNIQUE(project_id, name) on `groups`), so we look up the
+    // owning group's contracts by its name.
+    let mut by_group_name: HashMap<String, Vec<CRow>> = HashMap::new();
+    for c in &contracts {
+        let row = CRow {
             id: c.id.to_string(),
             method: c.method.as_str().to_owned(),
-            path: c.path,
-            summary: c.summary,
+            path: c.path.clone(),
+            summary: c.summary.clone(),
             status: c.status.as_str().to_owned(),
-            group: c.group_name.unwrap_or_default(),
-        })
-        .collect();
-    let group_rows: Vec<GroupRow> = groups
-        .into_iter()
-        .map(|g| GroupRow { name: g.name, contract_count: g.contract_count })
-        .collect();
+            group: c.group_name.clone().unwrap_or_default(),
+        };
+        if !row.group.is_empty() {
+            by_group_name.entry(row.group.clone()).or_default().push(row);
+        }
+    }
+    // Stable ordering: by method, then path.
+    for v in by_group_name.values_mut() {
+        v.sort_by(|a, b| a.method.cmp(&b.method).then(a.path.cmp(&b.path)));
+    }
+
+    let mut by_parent: HashMap<Id, Vec<Id>> = HashMap::new();
+    for g in &groups {
+        if let Some(p) = g.parent_id {
+            by_parent.entry(p).or_default().push(g.id);
+        }
+    }
+    let name_of = |id: Id| -> &str {
+        groups.iter().find(|g| g.id == id).map(|g| g.name.as_str()).unwrap_or("")
+    };
+    for v in by_parent.values_mut() {
+        v.sort_by(|a, b| name_of(*a).cmp(name_of(*b)));
+    }
+
+    let group_tree = build_group_tree(&groups, &by_parent, &by_group_name, project.slug.as_str());
+    let mut group_tree_html = String::new();
+    for root in &group_tree {
+        group_tree_html.push_str(&root.render().unwrap_or_default());
+    }
 
     let tpl = ProjectTpl {
         title: project.name.as_str(),
         slug: project.slug.as_str(),
         name: project.name.as_str(),
-        groups: group_rows,
-        contracts: contract_rows,
+        group_tree_html,
+        total_contracts,
+        total_groups,
     };
     Html(tpl.render().unwrap_or_default()).into_response()
+}
+
+/// Build a forest of `GroupNode` from a project's flat group list.
+/// `by_parent` maps parent id → child ids (already sorted by name).
+/// `by_group_name` maps group name → contracts belonging to that group.
+///
+/// Children are pre-rendered to HTML bottom-up because Askama 0.12
+/// cannot recurse via `child.render()?` and apply `| safe` together
+/// (the `?` strips the `Result` wrapping before `| safe` sees it, but
+/// Askama re-escapes the resulting `String`).
+fn build_group_tree(
+    groups: &[GroupSummary],
+    by_parent: &HashMap<Id, Vec<Id>>,
+    by_group_name: &HashMap<String, Vec<CRow>>,
+    slug: &str,
+) -> Vec<GroupNode> {
+    fn build(
+        id: Id,
+        depth: usize,
+        groups: &[GroupSummary],
+        by_parent: &HashMap<Id, Vec<Id>>,
+        by_group_name: &HashMap<String, Vec<CRow>>,
+        slug: &str,
+    ) -> GroupNode {
+        let summary = groups.iter().find(|g| g.id == id).expect("group missing");
+        // Render children bottom-up.
+        let mut children_html = String::new();
+        if let Some(child_ids) = by_parent.get(&id) {
+            for cid in child_ids {
+                let child = build(*cid, depth + 1, groups, by_parent, by_group_name, slug);
+                children_html.push_str(&child.render().unwrap_or_default());
+            }
+        }
+        let contracts = by_group_name.get(&summary.name).cloned().unwrap_or_default();
+        GroupNode {
+            id: summary.id.to_string(),
+            name: summary.name.clone(),
+            depth,
+            slug: slug.to_owned(),
+            contracts,
+            children_html,
+        }
+    }
+
+    let mut roots: Vec<GroupNode> = groups
+        .iter()
+        .filter(|g| g.parent_id.is_none())
+        .map(|g| build(g.id, 0, groups, by_parent, by_group_name, slug))
+        .collect();
+    roots.sort_by(|a, b| a.name.cmp(&b.name));
+    roots
 }
 
 /// `GET /projects/{slug}/contracts/{id}` — contract detail.
@@ -217,6 +300,6 @@ fn json_pretty(v: serde_json::Value) -> String {
 }
 
 /// RFC3339 string for a datetime, falling back to `Display` on format error.
-fn format_dt(dt: OffsetDateTime) -> String {
+pub(crate) fn format_dt(dt: OffsetDateTime) -> String {
     dt.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| dt.to_string())
 }

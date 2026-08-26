@@ -24,22 +24,24 @@ impl GroupRepo for SqliteGroupRepo {
             db.with_conn(|c| {
                 // Try insert; on UNIQUE conflict, return the existing row.
                 let id = Id::new();
+                let parent_str = input.parent_id.map(|p| p.to_string());
                 let inserted = c.execute(
-                    "INSERT OR IGNORE INTO groups (id, project_id, name, description) VALUES (?1, ?2, ?3, ?4)",
-                    params![id.to_string(), project_id.to_string(), input.name, input.description],
+                    "INSERT OR IGNORE INTO groups (id, project_id, name, description, parent_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![id.to_string(), project_id.to_string(), input.name, input.description, parent_str],
                 ).map_err(|e| DomainError::Internal(e.to_string()))?;
 
                 if inserted == 0 {
                     let existing = c.query_row(
-                        "SELECT id, name, description FROM groups WHERE project_id = ?1 AND name = ?2",
+                        "SELECT id, name, description, parent_id FROM groups WHERE project_id = ?1 AND name = ?2",
                         params![project_id.to_string(), input.name],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, Option<String>>(3)?)),
                     ).map_err(|e| DomainError::Internal(e.to_string()))?;
                     return Ok(Group {
                         id: parse_id(&existing.0)?,
                         project_id,
                         name: existing.1,
                         description: existing.2,
+                        parent_id: existing.3.as_deref().and_then(Id::parse),
                     });
                 }
 
@@ -48,6 +50,7 @@ impl GroupRepo for SqliteGroupRepo {
                     project_id,
                     name: input.name,
                     description: input.description,
+                    parent_id: input.parent_id,
                 })
             })
         })
@@ -65,23 +68,30 @@ impl GroupRepo for SqliteGroupRepo {
         tokio::task::spawn_blocking(move || {
             db.with_conn(|c| {
                 let id = Id::new();
+                let parent_str = input.parent_id.map(|p| p.to_string());
                 let inserted = c
                     .execute(
-                        "INSERT OR IGNORE INTO groups (id, project_id, name, description) VALUES (?1, ?2, ?3, ?4)",
-                        params![id.to_string(), project_id.to_string(), input.name, input.description],
+                        "INSERT OR IGNORE INTO groups (id, project_id, name, description, parent_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![id.to_string(), project_id.to_string(), input.name, input.description, parent_str],
                     )
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 if inserted != 0 {
                     return Ok(GroupResolution {
-                        group: Group { id, project_id, name: input.name, description: input.description },
+                        group: Group {
+                            id,
+                            project_id,
+                            name: input.name,
+                            description: input.description,
+                            parent_id: input.parent_id,
+                        },
                         created: true,
                     });
                 }
                 let existing = c
                     .query_row(
-                        "SELECT id, name, description FROM groups WHERE project_id = ?1 AND name = ?2",
+                        "SELECT id, name, description, parent_id FROM groups WHERE project_id = ?1 AND name = ?2",
                         params![project_id.to_string(), input.name],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, Option<String>>(3)?)),
                     )
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 Ok(GroupResolution {
@@ -90,6 +100,7 @@ impl GroupRepo for SqliteGroupRepo {
                         project_id,
                         name: existing.1,
                         description: existing.2,
+                        parent_id: existing.3.as_deref().and_then(Id::parse),
                     },
                     created: false,
                 })
@@ -106,7 +117,7 @@ impl GroupRepo for SqliteGroupRepo {
             db.with_conn(|c| -> Result<Option<Group>, DomainError> {
                 let row = c
                     .query_row(
-                        "SELECT id, name, description FROM groups
+                        "SELECT id, name, description, parent_id FROM groups
                          WHERE project_id = ?1 AND name = ?2",
                         params![project_id.to_string(), name],
                         |r| {
@@ -114,15 +125,20 @@ impl GroupRepo for SqliteGroupRepo {
                                 r.get::<_, String>(0)?,
                                 r.get::<_, String>(1)?,
                                 r.get::<_, Option<String>>(2)?,
+                                r.get::<_, Option<String>>(3)?,
                             ))
                         },
                     )
                     .optional()
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
                 let group = match row {
-                    Some((id, n, desc)) => {
-                        Some(Group { id: parse_id(&id)?, project_id, name: n, description: desc })
-                    }
+                    Some((id, n, desc, parent)) => Some(Group {
+                        id: parse_id(&id)?,
+                        project_id,
+                        name: n,
+                        description: desc,
+                        parent_id: parent.as_deref().and_then(Id::parse),
+                    }),
                     None => None,
                 };
                 Ok(group)
@@ -138,7 +154,7 @@ impl GroupRepo for SqliteGroupRepo {
             db.with_conn(|c| {
                 let mut stmt = c
                     .prepare(
-                        "SELECT g.id, g.name, COUNT(c.id)
+                        "SELECT g.id, g.name, g.parent_id, COUNT(c.id)
                      FROM groups g
                      LEFT JOIN contracts c ON c.group_id = g.id
                      WHERE g.project_id = ?1
@@ -150,16 +166,23 @@ impl GroupRepo for SqliteGroupRepo {
                     .query_map([project_id.to_string()], |r| {
                         let id: String = r.get(0)?;
                         let name: String = r.get(1)?;
-                        let count: i64 = r.get(2)?;
-                        Ok((id, name, count))
+                        let parent: Option<String> = r.get(2)?;
+                        let count: i64 = r.get(3)?;
+                        Ok((id, name, parent, count))
                     })
                     .map_err(|e| DomainError::Internal(e.to_string()))?;
 
                 let mut out = Vec::new();
                 for row in rows {
-                    let (id, name, count) =
+                    let (id, name, parent, count) =
                         row.map_err(|e| DomainError::Internal(e.to_string()))?;
-                    out.push(GroupSummary { id: parse_id(&id)?, name, contract_count: count });
+                    let parent_id = parent.as_deref().and_then(Id::parse);
+                    out.push(GroupSummary {
+                        id: parse_id(&id)?,
+                        name,
+                        contract_count: count,
+                        parent_id,
+                    });
                 }
                 Ok::<_, DomainError>(out)
             })
@@ -191,18 +214,20 @@ mod tests {
         (db, p.id)
     }
 
+    fn ref0(name: &str) -> GroupRef {
+        GroupRef { name: name.to_owned(), description: None, parent_id: None }
+    }
+
+    fn refd(name: &str, desc: &str) -> GroupRef {
+        GroupRef { name: name.to_owned(), description: Some(desc.to_owned()), parent_id: None }
+    }
+
     #[tokio::test]
     async fn resolve_creates_then_finds() {
         let (db, pid) = setup().await;
         let repo = SqliteGroupRepo { db };
-        let g1 = repo
-            .resolve(pid, &GroupRef { name: "Auth".to_owned(), description: Some("d".to_owned()) })
-            .await
-            .unwrap();
-        let g2 = repo
-            .resolve(pid, &GroupRef { name: "Auth".to_owned(), description: None })
-            .await
-            .unwrap();
+        let g1 = repo.resolve(pid, &refd("Auth", "d")).await.unwrap();
+        let g2 = repo.resolve(pid, &ref0("Auth")).await.unwrap();
         assert_eq!(g1.id, g2.id);
         assert_eq!(g1.name, "Auth");
     }
@@ -211,9 +236,30 @@ mod tests {
     async fn list_with_counts_includes_zero() {
         let (db, pid) = setup().await;
         let repo = SqliteGroupRepo { db };
-        repo.resolve(pid, &GroupRef { name: "A".to_owned(), description: None }).await.unwrap();
-        repo.resolve(pid, &GroupRef { name: "B".to_owned(), description: None }).await.unwrap();
+        repo.resolve(pid, &ref0("A")).await.unwrap();
+        repo.resolve(pid, &ref0("B")).await.unwrap();
         let list = repo.list_with_counts(pid).await.unwrap();
         assert_eq!(list.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn list_with_counts_returns_parent_id() {
+        let (db, pid) = setup().await;
+        let repo = SqliteGroupRepo { db };
+        let parent = repo.resolve(pid, &ref0("parent")).await.unwrap();
+        let child = repo
+            .resolve(
+                pid,
+                &GroupRef {
+                    name: "child".to_owned(),
+                    description: None,
+                    parent_id: Some(parent.id),
+                },
+            )
+            .await
+            .unwrap();
+        let list = repo.list_with_counts(pid).await.unwrap();
+        let child_summary = list.iter().find(|g| g.id == child.id).unwrap();
+        assert_eq!(child_summary.parent_id, Some(parent.id));
     }
 }

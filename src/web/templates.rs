@@ -41,8 +41,24 @@ pub struct ProjectTpl<'a> {
     pub title: &'a str,
     pub slug: &'a str,
     pub name: &'a str,
-    pub groups: Vec<GroupRow>,
+    pub group_tree_html: String,
+    pub total_contracts: usize,
+    pub total_groups: usize,
+}
+
+/// One node in the nested group tree. A node holds a group plus its
+/// directly-attached leaf contracts and any child groups. Children are
+/// pre-rendered to HTML on the server because Askama 0.12 can't safely
+/// recurse with proper escaping.
+#[derive(Template, Serialize, Clone)]
+#[template(path = "_partials/group_node.html")]
+pub struct GroupNode {
+    pub id: String,
+    pub name: String,
+    pub depth: usize,
+    pub slug: String,
     pub contracts: Vec<ContractRow>,
+    pub children_html: String,
 }
 
 /// One row in the groups table.
@@ -53,7 +69,7 @@ pub struct GroupRow {
 }
 
 /// One row in the contracts table on the project page.
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ContractRow {
     pub id: String,
     pub method: String,
@@ -132,6 +148,7 @@ pub struct SearchRow {
 pub struct LoginTpl<'a> {
     pub next: &'a str,
     pub error: Option<&'a str>,
+    pub username: &'a str,
 }
 
 #[derive(Template, Serialize)]
@@ -154,6 +171,7 @@ pub struct AdminUsersTpl<'a> {
     pub users: Vec<AdminUserRow>,
     pub csrf: &'a str,
     pub error: Option<&'a str>,
+    pub success: Option<&'a str>,
 }
 
 #[derive(Serialize)]

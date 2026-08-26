@@ -13,6 +13,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0004_auth_users_oauth_audit",
         include_str!("../../../migrations/0004_auth_users_oauth_audit.sql"),
     ),
+    ("0005_groups_parent_id", include_str!("../../../migrations/0005_groups_parent_id.sql")),
 ];
 
 /// Apply all pending migrations. Idempotent.

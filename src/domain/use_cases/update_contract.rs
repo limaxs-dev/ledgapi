@@ -67,7 +67,11 @@ async fn execute_inner(
                 .groups()
                 .resolve_with_created(
                     project_id,
-                    &crate::domain::group::GroupRef { name: name.to_owned(), description: None },
+                    &crate::domain::group::GroupRef {
+                        name: name.to_owned(),
+                        description: None,
+                        parent_id: None,
+                    },
                 )
                 .await?;
             if resolution.created {
@@ -269,7 +273,11 @@ mod tests {
             .groups()
             .resolve(
                 p.id,
-                &crate::domain::group::GroupRef { name: "Auth".to_owned(), description: None },
+                &crate::domain::group::GroupRef {
+                    name: "Auth".to_owned(),
+                    description: None,
+                    parent_id: None,
+                },
             )
             .await
             .unwrap();
