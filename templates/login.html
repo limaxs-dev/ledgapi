@@ -4,21 +4,25 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign in · ledgapi</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <main class="container auth-page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <main class="container auth-page" id="main">
         <section class="card login-card">
             <div class="login-brand">
-                <img src="/static/logo.svg" alt="ledgapi" class="login-logo">
+                <img src="/static/logo.png" alt="ledgapi" class="login-logo">
             </div>
             <h1>Sign in to ledgapi</h1>
             {% if let Some(message) = error %}
-                <p class="error">{{ message }}</p>
+                <p class="error" role="alert">{{ message }}</p>
             {% endif %}
             <form class="login-form" method="post" action="/login">
                 <input type="hidden" name="next" value="{{ next }}">
-                <label>Username <input name="username" autocomplete="username" required></label>
+                <label>Username <input name="username" autocomplete="username" value="{{ username }}" required></label>
                 <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
                 <button type="submit">Sign in</button>
             </form>

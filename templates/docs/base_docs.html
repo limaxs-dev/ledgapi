@@ -4,15 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ title }}{% endblock %} - ledgapi docs</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="docs">
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="docs-topnav">
     <a class="docs-brand" href="/docs">
-      <img src="/static/logo.svg" alt="ledgapi" class="docs-brand-logo">
+      <img src="/static/logo.png" alt="ledgapi" class="docs-brand-logo">
       <span>ledgapi</span>
     </a>
-    <nav class="docs-nav">
+    <nav class="docs-nav" aria-label="Docs">
       <a href="/docs"{% if current_id == "home" %} class="active"{% endif %}>Docs</a>
       <a href="/">Projects</a>
       <a href="https://github.com/limaxs-dev/ledgapi" rel="noopener">GitHub</a>
@@ -22,7 +26,7 @@
     </div>
   </header>
   <div class="docs-frame">
-    <aside class="docs-sidebar">
+    <aside class="docs-sidebar" aria-label="Docs sections">
       {% for group in sidebar.groups %}
       <div class="docs-sidebar-group">
         <div class="docs-sidebar-label">{{ group.label }}</div>
@@ -45,7 +49,7 @@
       </div>
       {% endfor %}
     </aside>
-    <main class="docs-main">
+    <main class="docs-main" id="main">
       {% block content %}{% endblock %}
     </main>
     <aside class="docs-toc-rail">

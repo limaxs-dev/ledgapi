@@ -31,7 +31,8 @@
 {% if !audit.is_empty() %}
 <h2>Audit history</h2>
 <table>
-    <thead><tr><th>Actor</th><th>Action</th><th>Time</th></tr></thead>
+    <caption class="skip-link">Audit history</caption>
+    <thead><tr><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Time</th></tr></thead>
     <tbody>
     {% for entry in audit %}<tr><td>{{ entry.actor }}</td><td>{{ entry.action }}</td><td>{{ entry.created_at }}</td></tr>{% endfor %}
     </tbody>

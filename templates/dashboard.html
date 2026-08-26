@@ -6,7 +6,8 @@
     <p>No projects yet. Create one with the <code>create_project</code> MCP tool.</p>
 {% else %}
 <table>
-    <thead><tr><th>Slug</th><th>Name</th><th class="num">Contracts</th></tr></thead>
+    <caption class="skip-link">Projects</caption>
+    <thead><tr><th scope="col">Slug</th><th scope="col">Name</th><th scope="col" class="num">Contracts</th></tr></thead>
     <tbody>
     {% for p in projects %}
         <tr>

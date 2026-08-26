@@ -6,7 +6,8 @@
 <p>No mutations recorded.</p>
 {% else %}
 <table>
-    <thead><tr><th>Actor</th><th>Action</th><th>Resource</th><th>Time</th></tr></thead>
+    <caption class="skip-link">Audit log entries</caption>
+    <thead><tr><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Resource</th><th scope="col">Time</th></tr></thead>
     <tbody>
     {% for entry in entries %}
         <tr>

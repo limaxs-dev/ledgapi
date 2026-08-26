@@ -4,19 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}ledgapi{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
         <a class="brand" href="/">
-            <img src="/static/logo.svg" alt="ledgapi" class="brand-logo">
+            <img src="/static/logo.png" alt="ledgapi" class="brand-logo">
             <span class="brand-name">ledgapi</span>
         </a>
         <nav>
             <a href="/">Projects</a>
+            <a href="/docs">Docs</a>
         </nav>
     </header>
-    <main class="container">
+    <main class="container" id="main">
         {% block content %}{% endblock %}
     </main>
     <footer class="site-footer">

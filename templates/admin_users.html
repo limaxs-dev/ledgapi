@@ -4,7 +4,8 @@
 <h1>Users</h1>
 <section class="card">
     <h2>Create user</h2>
-    {% if let Some(message) = error %}<p class="error">{{ message }}</p>{% endif %}
+    {% if let Some(message) = error %}<p class="error" role="alert">{{ message }}</p>{% endif %}
+    {% if let Some(message) = success %}<p class="success" role="status">{{ message }}</p>{% endif %}
     <form method="post" action="/admin/users">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <label>Username <input name="username" required></label>
@@ -20,7 +21,8 @@
     </form>
 </section>
 <table>
-    <thead><tr><th>Username</th><th>Role</th><th>Status</th></tr></thead>
+    <caption class="skip-link">Users</caption>
+    <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Status</th></tr></thead>
     <tbody>
     {% for user in users %}
         <tr><td>{{ user.username }}</td><td>{{ user.role }}</td><td>{{ user.status }}</td></tr>
