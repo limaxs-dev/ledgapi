@@ -60,8 +60,11 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
 
     // Build the nested group tree. Group names are unique within a
     // project (UNIQUE(project_id, name) on `groups`), so we look up the
-    // owning group's contracts by its name.
+    // owning group's contracts by its name. Contracts without a group
+    // are collected separately and rendered as a top-level "Ungrouped"
+    // node so the project page never silently drops them.
     let mut by_group_name: HashMap<String, Vec<CRow>> = HashMap::new();
+    let mut ungrouped: Vec<CRow> = Vec::new();
     for c in &contracts {
         let row = CRow {
             id: c.id.to_string(),
@@ -71,11 +74,13 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
             status: c.status.as_str().to_owned(),
             group: c.group_name.clone().unwrap_or_default(),
         };
-        if !row.group.is_empty() {
+        if row.group.is_empty() {
+            ungrouped.push(row);
+        } else {
             by_group_name.entry(row.group.clone()).or_default().push(row);
         }
     }
-    // Stable ordering: by method, then path.
+    ungrouped.sort_by(|a, b| a.method.cmp(&b.method).then(a.path.cmp(&b.path)));
     for v in by_group_name.values_mut() {
         v.sort_by(|a, b| a.method.cmp(&b.method).then(a.path.cmp(&b.path)));
     }
@@ -95,6 +100,19 @@ pub async fn project(Extension(state): Extension<AppState>, Path(slug): Path<Str
 
     let group_tree = build_group_tree(&groups, &by_parent, &by_group_name, project.slug.as_str());
     let mut group_tree_html = String::new();
+    // Render ungrouped contracts first, as their own virtual group so they
+    // never get dropped when a project has no groups yet.
+    if !ungrouped.is_empty() {
+        let ungrouped_node = GroupNode {
+            id: String::new(),
+            name: "Ungrouped".to_owned(),
+            depth: 0,
+            slug: project.slug.to_string(),
+            contracts: ungrouped,
+            children_html: String::new(),
+        };
+        group_tree_html.push_str(&ungrouped_node.render().unwrap_or_default());
+    }
     for root in &group_tree {
         group_tree_html.push_str(&root.render().unwrap_or_default());
     }

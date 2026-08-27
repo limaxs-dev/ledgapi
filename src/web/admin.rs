@@ -115,11 +115,13 @@ pub async fn create_user(Extension(state): Extension<AppState>, req: Request) ->
     if !token::constant_time_eq(&token::sha256_hex(&csrf_cookie), &token::sha256_hex(&form.csrf)) {
         return (StatusCode::FORBIDDEN, "csrf validation failed").into_response();
     }
+    let invalid_redirect =
+        (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=invalid")]).into_response();
     let Ok(role) = Role::parse(&form.role) else {
-        return StatusCode::BAD_REQUEST.into_response();
+        return invalid_redirect;
     };
     let Ok(password_hash) = password::hash_password(&form.password) else {
-        return StatusCode::BAD_REQUEST.into_response();
+        return invalid_redirect;
     };
     match crate::domain::use_cases::manage_user::create(
         &*state.repos,

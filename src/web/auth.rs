@@ -205,8 +205,9 @@ fn clear_cookie_response() -> Response {
 
 fn cookie_header(name: &str, value: &str, max_age: u64, secure: bool) -> header::HeaderValue {
     let secure_suffix = if secure { "; Secure" } else { "" };
+    let http_only = if name == CSRF_COOKIE { "" } else { "; HttpOnly" };
     header::HeaderValue::from_str(&format!(
-        "{name}={value}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Lax{secure_suffix}"
+        "{name}={value}; Path=/; Max-Age={max_age}{http_only}; SameSite=Lax{secure_suffix}"
     ))
     .expect("session cookie is valid")
 }

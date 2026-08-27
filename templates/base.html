@@ -20,6 +20,25 @@
             <a href="/">Projects</a>
             <a href="/docs">Docs</a>
         </nav>
+        <form class="logout-form" method="post" action="/logout" data-logout>
+            <input type="hidden" name="csrf" value="">
+            <button type="submit" class="logout-btn" title="Sign out">Sign out</button>
+        </form>
+        <script>
+          // Read the CSRF cookie and inject it into every logout form.
+          // The cookie is HttpOnly=false so document.cookie can read it,
+          // and we just submit the form to /logout. Anonymous visitors
+          // don't see a CSRF cookie so the form's value stays empty,
+          // but the logout endpoint will just redirect them to /login.
+          (function() {
+            const m = document.cookie.match(/(?:^|; )ledgapi_csrf=([^;]+)/);
+            if (m) {
+              document.querySelectorAll('form[data-logout]').forEach(f => {
+                f.querySelector('input[name="csrf"]').value = decodeURIComponent(m[1]);
+              });
+            }
+          })();
+        </script>
     </header>
     <main class="container" id="main">
         {% block content %}{% endblock %}

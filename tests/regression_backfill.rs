@@ -380,3 +380,129 @@ async fn web_search_unknown_project_returns_json_404() {
         .await;
     assert_eq!(ok.status(), 200);
 }
+
+/// BUG-000005 regression: the project page group tree was silently
+/// dropping contracts that had no group, even though the `total_contracts`
+/// count in the header still reflected them. A new contract with no group
+/// would make the page show "Contracts (1)" and "No contracts yet."
+/// simultaneously, hiding the contract from the user. The fix introduces
+/// an "Ungrouped" virtual group at the top of the tree.
+#[tokio::test]
+async fn project_page_shows_ungrouped_contracts() {
+    let (app, _token, pid) = setup_app().await;
+    // No group: contract will be ungrouped.
+    create_contract(&app, pid, None).await;
+    let (session, _) = app.seed_admin_session().await;
+    let resp = app
+        .oneshot(with_session(
+            Request::builder().uri("/projects/api").body(Body::empty()).unwrap(),
+            &session,
+        ))
+        .await;
+    assert_eq!(resp.status(), 200);
+    let html = resp.into_body().collect().await.unwrap().to_bytes();
+    let html = String::from_utf8_lossy(&html).into_owned();
+    assert!(
+        html.contains("Contracts (1)"),
+        "header must show the ungrouped contract count: {html}"
+    );
+    assert!(
+        !html.contains("No contracts yet"),
+        "page must not say 'No contracts yet' when an ungrouped contract exists: {html}"
+    );
+    assert!(
+        html.contains(">Ungrouped<"),
+        "page must render an 'Ungrouped' virtual group for contracts without a group: {html}"
+    );
+    assert!(
+        html.contains("class=\"method-badge method-POST\""),
+        "ungrouped contract method badge must render: {html}"
+    );
+}
+
+/// BUG-000006 regression: every authenticated page (base layout and docs
+/// base) must expose a working sign-out form, otherwise users have no way
+/// to end their session through the UI. The fix added a `data-logout` form
+/// to both `templates/base.html` and `templates/docs/base_docs.html`, and
+/// made the CSRF cookie readable from JavaScript (it was HttpOnly, which
+/// was correct for security but prevented the form from reading the token).
+#[tokio::test]
+async fn logout_form_present_on_every_page() {
+    let (app, _token, _pid) = setup_app().await;
+    let (session, _) = app.seed_admin_session().await;
+    for path in ["/", "/admin/users", "/docs", "/admin/audit"] {
+        let resp = app
+            .oneshot(with_session(
+                Request::builder().uri(path).body(Body::empty()).unwrap(),
+                &session,
+            ))
+            .await;
+        assert_eq!(resp.status(), 200, "GET {path} must be 200");
+        let html = resp.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&html).into_owned();
+        assert!(
+            html.contains("data-logout"),
+            "{path} must render a logout form with data-logout attribute: {html}"
+        );
+        assert!(
+            html.contains("action=\"/logout\""),
+            "{path} logout form must POST to /logout: {html}"
+        );
+        assert!(
+            html.contains("Sign out"),
+            "{path} logout form must have a 'Sign out' button: {html}"
+        );
+    }
+}
+
+/// BUG-000006 regression: submitting the logout form with a valid CSRF
+/// must invalidate the session, so a subsequent /admin/users navigation
+/// is redirected to /login.
+#[tokio::test]
+async fn logout_form_submission_invalidates_session() {
+    let (app, _token, _pid) = setup_app().await;
+    let (session, csrf) = app.seed_admin_session().await;
+    // First confirm /admin/users is accessible.
+    let resp = app
+        .oneshot(with_session(
+            Request::builder().uri("/admin/users").body(Body::empty()).unwrap(),
+            &session,
+        ))
+        .await;
+    assert_eq!(resp.status(), 200);
+
+    // Submit logout. We need a session AND csrf cookie; build a Cookie
+    // header with both.
+    let body = format!("csrf={csrf}");
+    let logout = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/logout")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .header("cookie", format!("ledgapi_session={session}; ledgapi_csrf={csrf}"))
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await;
+    assert!(
+        logout.status() == 303 || logout.status() == 302 || logout.status() == 200,
+        "logout must redirect or return OK, got {}",
+        logout.status()
+    );
+
+    // A second request with the same session should now be unauthenticated
+    // (303 to /login).
+    let after = app
+        .oneshot(with_session(
+            Request::builder().uri("/admin/users").body(Body::empty()).unwrap(),
+            &session,
+        ))
+        .await;
+    assert_eq!(
+        after.status(),
+        303,
+        "session must be invalidated after logout; got {}",
+        after.status()
+    );
+}

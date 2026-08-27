@@ -23,6 +23,10 @@
     </nav>
     <div class="docs-nav-right">
       <span class="docs-username">{{ username }}</span>
+      <form class="logout-form" method="post" action="/logout" data-logout>
+        <input type="hidden" name="csrf" value="">
+        <button type="submit" class="logout-btn" title="Sign out">Sign out</button>
+      </form>
     </div>
   </header>
   <div class="docs-frame">
