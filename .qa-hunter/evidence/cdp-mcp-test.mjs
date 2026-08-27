@@ -93,6 +93,19 @@ async function main() {
   await cdp.send('Network.enable');
   await cdp.send('Page.enable');
 
+  // Pre-authenticate: log in via the browser so subsequent tests have a session
+  // (docs is now behind web auth since 1173467; this used to work without auth).
+  await navigate(cdp, `${SERVER}/login`);
+  await getDOM(cdp, `(() => {
+    const u = document.querySelector('input[name="username"]');
+    const p = document.querySelector('input[name="password"]');
+    u.value = 'admin';
+    p.value = 'change-this-password-1234';
+    document.querySelector('button[type="submit"]').click();
+    return true;
+  })()`);
+  await new Promise(r => setTimeout(r, 1500));
+
   const results = [];
 
   // UC-016: Visit docs sub-pages by direct navigation
@@ -196,6 +209,18 @@ async function main() {
 
   // UC-020: OAuth authorize page renders
   results.push(await test('UC-020 OAuth authorize page renders', async () => {
+    // OAuth authorize is behind web auth since 1173467 — log in first.
+    await cdp.send('Network.clearBrowserCookies');
+    await navigate(cdp, `${SERVER}/login`);
+    await getDOM(cdp, `(() => {
+      const u = document.querySelector('input[name="username"]');
+      const p = document.querySelector('input[name="password"]');
+      u.value = 'admin';
+      p.value = 'change-this-password-1234';
+      document.querySelector('button[type="submit"]').click();
+      return true;
+    })()`);
+    await new Promise(r => setTimeout(r, 1500));
     // First get a client_id from registration
     const regResp = await fetch(`${SERVER}/oauth/register`, {
       method: 'POST',
@@ -213,7 +238,7 @@ async function main() {
       h1: document.querySelector('h1')?.textContent,
       hasApprove: !!document.querySelector('button[name="decision"][value="approve"]'),
       hasDeny: !!document.querySelector('button[name="decision"][value="deny"]'),
-      hasCsrf: !!document.querySelector('input[name="csrf"]'),
+      hasCsrf: !!document.querySelector('form[method="post"][action="/oauth/consent"] input[name="csrf"]'),
       scopeText: document.body.textContent.match(/ledgapi:\\w+/g),
     })`);
     if (!dom.hasApprove) throw new Error('no approve button');
@@ -252,8 +277,8 @@ async function main() {
     await navigate(cdp, authorizeUrl);
     const dom = await getDOM(cdp, `({
       h1: document.querySelector('h1')?.textContent,
-      hasForm: !!document.querySelector('form'),
-      csrf: document.querySelector('input[name="csrf"]')?.value?.length,
+      hasForm: !!document.querySelector('form[method="post"][action="/oauth/consent"]'),
+      csrf: document.querySelector('form[method="post"][action="/oauth/consent"] input[name="csrf"]')?.value?.length,
       clientId: document.querySelector('input[name="client_id"]')?.value,
       state: document.querySelector('input[name="state"]')?.value,
       scope: document.querySelector('input[name="scope"]')?.value,
@@ -265,7 +290,7 @@ async function main() {
     if (dom.clientId !== client_id) throw new Error(`client_id mismatch`);
     // Submit consent approval via CDP
     const formSubmit = await getDOM(cdp, `(() => {
-      const f = document.querySelector('form');
+      const f = document.querySelector('form[method="post"][action="/oauth/consent"]');
       f.querySelector('button[name="decision"][value="approve"]').click();
       return true;
     })()`);

@@ -1,7 +1,7 @@
 {
-  "current_iteration": 12,
+  "current_iteration": 13,
   "clock_start": null,
   "soft_cap_active": false,
   "soft_cap_frozen_finding_ids": [],
-  "last_tested_commit": "6948807b0dc3d5608a3791f13f8d473557649c5c"
+  "last_tested_commit": "3f03105822aa001698a9660c9b0a4e6ddb970926"
 }

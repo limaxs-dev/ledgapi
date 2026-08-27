@@ -200,3 +200,57 @@ End-to-end exercise of the new `create_group` MCP tool (added in commit
 QA Hunter: 192 Rust tests pass, clippy + fmt clean, button + UI
 test suite 30/30, MCP round-trip + UI rendering both green. Score
 100.0 / CONVERGED.
+
+## Iteration 13 — UI + new features via Chrome DevTools Protocol
+
+Driven by Chrome DevTools Protocol (raw WebSocket on
+`ws://127.0.0.1:9222`, headless Chrome 152.0.7977.64). Goal: verify the
+new `create_group` MCP tool + nested-group web rendering work end-to-end
+through the UI, not just the API.
+
+### Coverage
+- `.qa-hunter/evidence/new-features-test.mjs` — **20 new-feature scenarios
+  (NF-001..NF-020)**, all pass.
+- Existing suites re-verified after the tool-count went from 10 to 11:
+  - `.qa-hunter/evidence/cdp-test.mjs` — 15/15
+  - `.qa-hunter/evidence/cdp-mcp-test.mjs` — 15/15
+  - `.qa-hunter/evidence/cdp-flow-test.mjs` — 15/15
+  - `.qa-hunter/evidence/button-test.mjs` — 30/30
+  - `.qa-hunter/evidence/api-comprehensive.mjs` — 46/46
+- **Total: 141/141 CDP scenarios pass.** Zero console exceptions, zero
+  console errors across the full session.
+- 192 Rust tests pass, clippy + fmt clean.
+
+### What was tested
+- **create_group** (new in 6948807): root folder, sub-folder via
+  `parent_id`, idempotency, invalid `parent_id` rejected, unknown
+  project rejected, `list_groups` returns `parent_id` field.
+- **create_contract with `group_parent_id`**: auto-creates a fresh
+  group and immediately re-parents it under the given parent in a
+  single MCP round-trip.
+- **Web UI**: project page renders the group tree with correct
+  `data-depth` attribute (0, 1, 2 verified); contracts are visible
+  inside their parent group; "X groups (including nested)" counter
+  reports the right count; empty project shows the right "0 groups,
+  No contracts yet" state.
+- **OpenAPI export** of a project with nested groups produces a
+  single YAML containing every path; size scales with the tree.
+- **Regression**: sign-out form is still present on every page
+  (BUG-000006), admin pages still consistent, login still has no
+  overlap, mobile/tablet viewports still render correctly.
+
+### Test-infrastructure fixes shipped in this iteration
+- `cdp-test.mjs` UC-004: relaxed "empty dashboard" check to accept
+  either empty state OR populated table (both valid steady states).
+- `cdp-mcp-test.mjs`: added a pre-authenticate step at the start so
+  `/docs` tests work after 1173467 made docs web-auth-gated.
+- `cdp-mcp-test.mjs` UC-020/UC-021: explicit login before the OAuth
+  flow (also gated by web auth); updated form selector from
+  `action="/admin/users"` to `action="/oauth/consent"`.
+- `cdp-test.mjs` & `cdp-mcp-test.mjs`: updated the admin form
+  selector to the new specific `form[method="post"][action="/admin/users"]`
+  so the test no longer picks up the new logout form's csrf input.
+- `api-comprehensive.mjs` API-TL-1: bumped expected tool count from
+  10 to 11 (and asserted `create_group` is in the list).
+
+QA score: 100.0 / TERMINAL_STATE CONVERGED.

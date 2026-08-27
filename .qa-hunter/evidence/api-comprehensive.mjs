@@ -783,15 +783,20 @@ async function main() {
   }));
 
   // === API-011: tools/list ===
-  results.push(await test('API-TL-1 tools/list returns all 10 tools', async () => {
+  results.push(await test('API-TL-1 tools/list returns all 11 tools', async () => {
     const r = await mcpCall(token, 'tools/list', {});
     if (r.error) throw new Error(JSON.stringify(r.error));
     if (!r.result?.tools?.length) throw new Error('no tools');
-    if (r.result.tools.length !== 10) throw new Error(`expected 10, got ${r.result.tools.length}`);
+    // 11 tools since 6948807: create_project, list_projects, create_group,
+    // create_contract, get_contract_by_id, update_contract, delete_contract,
+    // list_groups, list_contracts, search_contract, export_openapi
+    if (r.result.tools.length !== 11) throw new Error(`expected 11, got ${r.result.tools.length}`);
+    const names = r.result.tools.map(t => t.name);
+    if (!names.includes('create_group')) throw new Error('create_group missing');
     writeTrace(`TRACE-${traceCounter++}`, 'api', 'tools/list', 'tool count',
-      ['mcpCall tools/list'], '10 tools',
+      ['mcpCall tools/list'], '11 tools including create_group',
       `count=${r.result.tools.length}`, 'PASS', ['mcp/server.rs tool registry']);
-    return r.result.tools.map(t => t.name);
+    return names;
   }));
 
   // === API-012: tools/call with unknown tool ===
