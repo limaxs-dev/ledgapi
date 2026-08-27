@@ -56,6 +56,7 @@ impl Tool for ListGroupsTool {
                     "id": g.id.to_string(),
                     "name": g.name,
                     "contract_count": g.contract_count,
+                    "parent_id": g.parent_id.map(|i| i.to_string()),
                 })
             })
             .collect();

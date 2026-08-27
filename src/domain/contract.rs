@@ -286,6 +286,14 @@ pub struct ContractCreate {
     pub tags: Option<Vec<String>>,
     #[serde(default)]
     pub group_name: Option<String>,
+    /// Optional parent group id for the auto-created group (when
+    /// `group_name` is set). Lets you file a contract in a nested
+    /// (sub-folder) group without first calling `create_group`.
+    /// Not persisted on the contract itself — applied to the freshly
+    /// resolved group only when one is actually created.
+    #[serde(default)]
+    #[schemars(with = "Option<String>")]
+    pub group_parent_id: Option<Id>,
     /// Bypass the similarity warning. Still returns similar matches.
     #[serde(default)]
     pub force: bool,
@@ -531,6 +539,7 @@ mod tests {
             status: None,
             tags: None,
             group_name: None,
+            group_parent_id: None,
             force: false,
         }
     }

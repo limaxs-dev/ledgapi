@@ -87,6 +87,7 @@ async fn create_contract(app: &TestApp, project_id: Id, group_id: Option<Id>) ->
         status: None,
         tags: None,
         group_name: None,
+        group_parent_id: None,
         force: true,
     };
     app.state.repos.contracts().create(project_id, group_id, &input).await.unwrap().id
@@ -284,6 +285,7 @@ async fn semantic_only_search_results_are_hydrated() {
             status: None,
             tags: None,
             group_name: None,
+            group_parent_id: None,
         },
     )
     .await

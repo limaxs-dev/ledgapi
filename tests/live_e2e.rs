@@ -121,6 +121,7 @@ async fn real_semantic_search_finds_similar() {
                 status: None,
                 tags: None,
                 group_name: None,
+                group_parent_id: None,
                 force: false,
             },
         )
@@ -153,6 +154,7 @@ async fn real_semantic_search_finds_similar() {
                 status: None,
                 tags: None,
                 group_name: None,
+                group_parent_id: None,
                 force: false,
             },
         )
@@ -212,6 +214,7 @@ async fn real_sqlite_vec_knn_returns_ordered_neighbours() {
                     status: None,
                     tags: None,
                     group_name: None,
+                    group_parent_id: None,
                     force: false,
                 },
             )
@@ -275,6 +278,7 @@ async fn real_openapi_export_matches_golden() {
                 status: None,
                 tags: None,
                 group_name: None,
+                group_parent_id: None,
                 force: false,
             },
         )

@@ -1,6 +1,7 @@
 //! Concrete tool implementations. One file per tool in submodules.
 
 pub mod create_contract;
+pub mod create_group;
 pub mod create_project;
 pub mod delete_contract;
 pub mod export_openapi;
@@ -32,6 +33,7 @@ impl McpRegistry {
         let mut r = Self::default();
         r.register(Arc::new(create_project::CreateProjectTool));
         r.register(Arc::new(list_projects::ListProjectsTool));
+        r.register(Arc::new(create_group::CreateGroupTool));
         r.register(Arc::new(create_contract::CreateContractTool));
         r.register(Arc::new(get_contract_by_id::GetContractByIdTool));
         r.register(Arc::new(update_contract::UpdateContractTool));
@@ -68,9 +70,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_registers_all_ten_tools() {
+    fn new_registers_all_eleven_tools() {
         let r = McpRegistry::new();
-        assert_eq!(r.list().len(), 10);
+        assert_eq!(r.list().len(), 11);
     }
 
     #[test]
@@ -88,6 +90,7 @@ mod tests {
         for name in [
             "create_project",
             "list_projects",
+            "create_group",
             "create_contract",
             "get_contract_by_id",
             "update_contract",

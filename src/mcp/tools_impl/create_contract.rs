@@ -47,6 +47,12 @@ pub struct Input {
     pub tags: Option<Vec<String>>,
     #[serde(default)]
     pub group_name: Option<String>,
+    /// Optional parent group id for the auto-created group (when
+    /// `group_name` is set). Lets you file a contract in a nested
+    /// (sub-folder) group. Rendered as a string in JSON Schema.
+    #[serde(default)]
+    #[schemars(with = "Option<String>")]
+    pub group_parent_id: Option<String>,
     /// Bypass the similarity warning. Without `true`, a warning_similar_found
     /// result is returned when a too-similar contract already exists.
     #[serde(default)]
@@ -95,6 +101,10 @@ impl Tool for CreateContractTool {
             status: p.status,
             tags: p.tags,
             group_name: p.group_name,
+            group_parent_id: p
+                .group_parent_id
+                .as_deref()
+                .and_then(|s| if s.is_empty() { None } else { crate::core::id::Id::parse(s) }),
             force: p.force,
         };
         // Drop empty-string group_name so we don't resolve an empty group.

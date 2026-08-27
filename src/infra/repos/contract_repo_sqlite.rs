@@ -815,6 +815,7 @@ mod tests {
             status: None,
             tags: None,
             group_name: None,
+            group_parent_id: None,
             force: false,
         }
     }

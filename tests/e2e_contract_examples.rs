@@ -183,6 +183,7 @@ async fn contract_detail_renders_multiple_examples() {
                 status: None,
                 tags: None,
                 group_name: None,
+                group_parent_id: None,
                 force: false,
             },
         )

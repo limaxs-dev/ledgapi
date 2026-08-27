@@ -61,7 +61,7 @@ async fn execute_inner(
                     &crate::domain::group::GroupRef {
                         name: name.clone(),
                         description: None,
-                        parent_id: None,
+                        parent_id: input.group_parent_id,
                     },
                 )
                 .await?;
@@ -212,6 +212,7 @@ pub fn ContractCreate_for_tests() -> crate::domain::contract::ContractCreate {
         status: None,
         tags: None,
         group_name: None,
+        group_parent_id: None,
         force: false,
     }
 }
@@ -267,6 +268,7 @@ mod tests {
             status: None,
             tags: None,
             group_name: None,
+            group_parent_id: None,
             force,
         }
     }
