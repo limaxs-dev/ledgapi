@@ -151,3 +151,52 @@ headless Chrome 152.0.7977.64). Covers **every button on every page** and
 - UI-016: security headers present
 - UI-017: print stylesheet doesn't break layout
 - UI-018: search results page renders
+
+## Iteration 12 — Nested groups (folders) via MCP
+
+End-to-end exercise of the new `create_group` MCP tool (added in commit
+`6948807`). Built an e-commerce project with a real folder hierarchy:
+
+```
+📁 Admin
+  📁 Audit          (1 contract)
+  📁 Reports        (1 contract)
+    📁 Sales
+📁 Authentication
+  📁 API_Keys       (1)
+  📁 OAuth          (3)
+  📁 Password       (2)
+📁 Cart
+  📁 Discounts      (1)
+  📁 Items          (2)
+📁 Catalog
+  📁 Categories     (2)
+  📁 Inventory      (1)
+  📁 Products       (3)
+    📁 Images       (1)
+    📁 Variants     (2)
+📁 Customers
+  📁 Addresses      (1)
+    📁 Billing
+    📁 Shipping
+  📁 Profiles       (1)
+📁 Orders
+  📁 Fulfillment    (1)
+  📁 Lifecycle      (2)
+    📁 Returns      (1)
+📁 Payments
+  📁 Methods        (1)
+  📁 Refunds        (1)
+```
+
+- **29 groups** total (7 root + 16 sub + 6 sub-sub), 8 placeholder folders
+  still empty (Sales, Billing, Shipping, Returns, etc.) ready to receive
+  future contracts.
+- **28 contracts** filed in their proper folders via the new
+  `group_parent_id` field on `create_contract`.
+- Project page renders the tree with `<details>`/`<summary>` per group.
+- OpenAPI export (23,634 bytes) groups 25 unique paths.
+
+QA Hunter: 192 Rust tests pass, clippy + fmt clean, button + UI
+test suite 30/30, MCP round-trip + UI rendering both green. Score
+100.0 / CONVERGED.
