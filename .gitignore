@@ -1,6 +1,12 @@
 # Tool config (local only, not for repo)
 .serena/
 .impeccable/
+.superpowers/
+.playwright-cli/
+.qa-hunter/
+
+# MCP client config (local; replace with .mcp.json.example for shared defaults)
+.mcp.json
 
 # Environment
 .env
