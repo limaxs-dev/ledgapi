@@ -9,7 +9,7 @@ The container reads its configuration from environment variables. The names use 
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP__SERVER__BIND` | `0.0.0.0:8080` | The address and port the HTTP server binds to. |
+| `APP__SERVER__BIND` | `0.0.0.0:18080` | The address and port the HTTP server binds to. |
 | `APP__SERVER__WORKERS` | `num_cpus::get()` | The number of Tokio worker threads. |
 
 ## Database
@@ -23,7 +23,7 @@ The container reads its configuration from environment variables. The names use 
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP__AUTH__ISSUER` | `http://localhost:8080` | The public URL of the instance. Used in OAuth metadata and as the `iss` claim on tokens. |
+| `APP__AUTH__ISSUER` | `http://localhost:18080` | The public URL of the instance. Used in OAuth metadata and as the `iss` claim on tokens. |
 | `APP__AUTH__COOKIE_SECURE` | `false` | Set `true` behind HTTPS. Sets the `Secure` flag on session cookies. |
 | `APP__AUTH__INITIAL_ADMIN_USERNAME` | none | Read only on first boot. Required if the `users` table is empty. |
 | `APP__AUTH__INITIAL_ADMIN_PASSWORD` | none | Read only on first boot. Must be at least 12 characters. |

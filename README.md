@@ -74,7 +74,7 @@ Other things that come along: per-contract audit history with the acting user, t
    └────────────┘
 ```
 
-Single binary (`ledgapi`), single volume (`/data`) for the SQLite database and the embedding model cache. The web UI and the MCP server share the same HTTP listener on `:8080`; the only difference is the auth layer (session cookie for the UI, bearer access token for `/mcp`).
+Single binary (`ledgapi`), single volume (`/data`) for the SQLite database and the embedding model cache. The web UI and the MCP server share the same HTTP listener on `:18080`; the only difference is the auth layer (session cookie for the UI, bearer access token for `/mcp`).
 
 ## Quickstart
 
@@ -90,7 +90,7 @@ docker compose -f docker/docker-compose.yaml up -d
 
 On the very first boot the database is empty, so these two variables seed the **initial super-admin**. On every subsequent start they are ignored — existing users are never overwritten.
 
-The container exposes `:8080`. Open <http://localhost:8080/> and sign in with the credentials above. The web UI is now usable. Create more users (viewer / editor / super-admin) under `/admin/users`.
+The container exposes `:18080`. Open <http://localhost:18080/> and sign in with the credentials above. The web UI is now usable. Create more users (viewer / editor / super-admin) under `/admin/users`.
 
 ### 2. Connect an MCP client
 
@@ -101,7 +101,7 @@ The container exposes `:8080`. Open <http://localhost:8080/> and sign in with th
   "mcpServers": {
     "ledgapi": {
       "type": "http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:18080/mcp"
     }
   }
 }
@@ -313,12 +313,64 @@ All knobs follow the pattern `APP__SECTION__KEY` and are loaded from environment
 
 | Variable | Default | When to change |
 | --- | --- | --- |
-| `APP__SERVER__BIND` | `0.0.0.0:8080` | Reverse-proxy deployments, non-default port. |
+| `APP__SERVER__BIND` | `0.0.0.0:18080` | Reverse-proxy deployments, non-default port. |
 | `APP__DATABASE__PATH` | `/data/ledgapi.db` | Point at a persistent volume in production. |
-| `APP__AUTH__ISSUER` | `http://localhost:8080` | Set to your public URL in production (`https://...`). |
+| `APP__AUTH__ISSUER` | `http://localhost:18080` | Set to your public URL in production (`https://...`). |
 | `APP__AUTH__COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS. |
 | `APP__EMBED__SIMILARITY_THRESHOLD` | `0.85` | Lower it if your agents are getting too many false-positive duplicate warnings; raise it if duplicates slip through. |
 | `APP__LOG__LEVEL` | `info` | `debug` for verbose tracing, `warn` for quieter production logs. |
+
+## Choosing a port
+
+ledgapi defaults to **port `18080`** (not the conventional `8080`) to reduce the
+chance of colliding with another service already running on your machine —
+many other dev servers and reverse proxies claim `8080` by default.
+
+Three port values matter, and they are independent:
+
+| Value | Default | What it controls |
+| --- | --- | --- |
+| `APP_HOST_PORT` | `18080` | The port your **host** listens on (e.g. what you type in the browser). |
+| `APP_CONTAINER_PORT` | `18080` | The port the ledgapi process binds to **inside** the container. |
+| `APP__SERVER__BIND` | `0.0.0.0:18080` | The bind address inside the container; set automatically from `APP_CONTAINER_PORT`. |
+| `APP__AUTH__ISSUER` | `http://localhost:18080` | The URL the OAuth client is told to use; must match what the user actually visits. |
+
+`APP_HOST_PORT` and `APP_CONTAINER_PORT` are read by `docker-compose.yaml` from
+the shell environment; the others are baked into the container at compose time
+from the same variables.
+
+**Run on a different host port (most common case)** — your machine already
+has something on `18080`:
+
+```bash
+export APP_HOST_PORT=28080        # what your browser connects to
+docker compose -f docker/docker-compose.yaml up -d
+# open http://localhost:28080/
+```
+
+**Run on a different port inside the container** — for example, you front
+ledgapi with a reverse proxy on the host and want the container to bind to
+`127.0.0.1` only on a non-default port:
+
+```bash
+export APP_HOST_PORT=28080        # still published to the host
+export APP_CONTAINER_PORT=29000   # what the process binds to inside
+docker compose -f docker/docker-compose.yaml up -d
+```
+
+**Run the binary directly (no Docker)** — set `APP__SERVER__BIND` and
+`APP__AUTH__ISSUER` to the same host:port pair:
+
+```bash
+APP__SERVER__BIND=0.0.0.0:28080 \
+APP__AUTH__ISSUER=http://localhost:28080 \
+cargo run --release
+# open http://localhost:28080/
+```
+
+In every case, make sure `APP__AUTH__ISSUER` matches the URL the user actually
+visits in their browser. OAuth clients use it to discover the token endpoint
+and to validate `iss` claims; a mismatch causes the MCP login flow to fail.
 
 ## Production notes
 

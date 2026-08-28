@@ -3,7 +3,7 @@ title: First login
 description: Sign in with the initial super-admin, then create additional users with the right role for their job.
 ---
 
-The first time you open `http://localhost:8080/`, sign in with the credentials from the install step. The browser stores a session cookie, and the home page shows an empty projects list.
+The first time you open `http://localhost:18080/`, sign in with the credentials from the install step. The browser stores a session cookie, and the home page shows an empty projects list.
 
 ## Sign in
 
@@ -31,7 +31,7 @@ Only a super-admin can create users. Open `/admin/users` from the top nav.
 
 ```bash
 # From a terminal, with a logged-in super-admin session cookie:
-curl -X POST http://localhost:8080/admin/users \
+curl -X POST http://localhost:18080/admin/users \
   -H "Content-Type: application/json" \
   -b cookies.txt \
   -d '{

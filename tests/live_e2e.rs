@@ -48,7 +48,7 @@ fn fixture_cfg() -> AppConfig {
         auth: AuthConfig {
             initial_admin_username: None,
             initial_admin_password: None,
-            issuer: "http://localhost:8080".into(),
+            issuer: "http://localhost:18080".into(),
             session_ttl: std::time::Duration::from_hours(1),
             access_token_ttl: std::time::Duration::from_hours(1),
             refresh_token_ttl: std::time::Duration::from_hours(24),

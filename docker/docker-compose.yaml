@@ -7,7 +7,7 @@ services:
     container_name: ledgapi
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${APP_HOST_PORT:-18080}:${APP_CONTAINER_PORT:-18080}"
     volumes:
       - ledgapi-data:/data
     environment:
@@ -16,8 +16,9 @@ services:
       APP__LOG__FORMAT: json
       APP__AUTH__INITIAL_ADMIN_USERNAME: ${INITIAL_USERNAME:-admin}
       APP__AUTH__INITIAL_ADMIN_PASSWORD: ${INITIAL_PASSWORD:?set INITIAL_PASSWORD}
-      APP__AUTH__ISSUER: ${APP_ISSUER:-http://localhost:8080}
+      APP__AUTH__ISSUER: ${APP_ISSUER:-http://localhost:${APP_CONTAINER_PORT:-18080}}
       APP__AUTH__COOKIE_SECURE: ${APP_COOKIE_SECURE:-false}
+      APP__SERVER__BIND: 0.0.0.0:${APP_CONTAINER_PORT:-18080}
 
 volumes:
   ledgapi-data:

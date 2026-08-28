@@ -14,7 +14,7 @@ Add one entry to `.mcp.json` at the root of your project.
   "mcpServers": {
     "ledgapi": {
       "type": "http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:18080/mcp"
     }
   }
 }
@@ -24,8 +24,8 @@ In production, swap `localhost` for your host. The URL must match the `APP__AUTH
 
 ## What happens on first connect
 
-1. The client fetches `http://localhost:8080/.well-known/oauth-authorization-server` to discover the issuer, authorization endpoint, token endpoint, and supported PKCE methods.
-2. The client generates a PKCE verifier and a state value, then opens the authorization endpoint in a browser. The URL looks like `http://localhost:8080/oauth/authorize?response_type=code&client_id=...&code_challenge=...&state=...`.
+1. The client fetches `http://localhost:18080/.well-known/oauth-authorization-server` to discover the issuer, authorization endpoint, token endpoint, and supported PKCE methods.
+2. The client generates a PKCE verifier and a state value, then opens the authorization endpoint in a browser. The URL looks like `http://localhost:18080/oauth/authorize?response_type=code&client_id=...&code_challenge=...&state=...`.
 3. You sign in to ledgapi in the browser. The same session cookie is reused if you are already signed in.
 4. The consent screen lists the scopes the client is asking for. Approve or deny.
 5. The server redirects back to the client's redirect URI with a short-lived authorization code.
@@ -59,8 +59,8 @@ export APP__AUTH__COOKIE_SECURE=true
 From a terminal, with a valid access token in `$TOKEN`:
 
 ```bash
-curl -s http://localhost:8080/.well-known/oauth-protected-resource | head
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/mcp \
+curl -s http://localhost:18080/.well-known/oauth-protected-resource | head
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:18080/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'

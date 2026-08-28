@@ -28,14 +28,14 @@ export INITIAL_PASSWORD=change-this-password   # min 12 characters
 docker compose -f docker/docker-compose.yaml up -d
 ```
 
-Open `http://localhost:8080/` and sign in with those credentials. Connect an MCP client by adding one entry to `.mcp.json`:
+Open `http://localhost:18080/` and sign in with those credentials. Connect an MCP client by adding one entry to `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "ledgapi": {
       "type": "http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:18080/mcp"
     }
   }
 }

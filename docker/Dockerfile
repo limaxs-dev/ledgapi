@@ -35,11 +35,11 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
  && mkdir -p /data && chown app:app /data
 
 USER app
-ENV APP__SERVER__BIND=0.0.0.0:8080
-EXPOSE 8080
+ENV APP__SERVER__BIND=0.0.0.0:18080
+EXPOSE 18080
 VOLUME ["/data"]
 HEALTHCHECK --interval=15s --timeout=2s --start-period=40s --retries=3 \
-    CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
+    CMD wget -qO- http://127.0.0.1:18080/healthz || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 CMD ["ledgapi"]

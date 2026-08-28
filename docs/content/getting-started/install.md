@@ -20,11 +20,11 @@ services:
   ledgapi:
     image: ghcr.io/your-org/ledgapi:latest
     ports:
-      - "8080:8080"
+      - "${APP_HOST_PORT:-18080}:${APP_CONTAINER_PORT:-18080}"
     environment:
       APP__AUTH__INITIAL_ADMIN_USERNAME: admin
       APP__AUTH__INITIAL_ADMIN_PASSWORD: change-this-password
-      APP__AUTH__ISSUER: http://localhost:8080
+      APP__AUTH__ISSUER: ${APP_ISSUER:-http://localhost:18080}
     volumes:
       - ledgapi-data:/data
     restart: unless-stopped
@@ -51,10 +51,10 @@ The `INITIAL_PASSWORD` is read only on the first boot, when the `users` table is
 
 ## Verifying the install
 
-Open `http://localhost:8080/` and sign in with the credentials you set. You should see an empty projects list. To check the OAuth discovery endpoint from a terminal:
+Open `http://localhost:18080/` and sign in with the credentials you set. You should see an empty projects list. To check the OAuth discovery endpoint from a terminal:
 
 ```bash
-curl -s http://localhost:8080/.well-known/oauth-authorization-server | head
+curl -s http://localhost:18080/.well-known/oauth-authorization-server | head
 ```
 
 The response is a JSON document with `issuer`, `authorization_endpoint`, `token_endpoint`, and the supported scopes.

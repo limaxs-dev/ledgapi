@@ -34,7 +34,7 @@ pub struct AuthConfig {
 }
 
 fn default_issuer() -> String {
-    "http://localhost:8080".to_owned()
+    "http://localhost:18080".to_owned()
 }
 
 fn default_session_ttl() -> Duration {
@@ -55,7 +55,7 @@ fn default_authorization_code_ttl() -> Duration {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
-    /// Bind address, e.g. `0.0.0.0:8080`.
+    /// Bind address, e.g. `0.0.0.0:18080`.
     pub bind: String,
     /// Maximum time to wait for in-flight requests to finish on SIGTERM.
     #[serde(with = "humantime_serde", default = "default_shutdown_timeout")]
@@ -143,12 +143,12 @@ impl AppConfig {
         let _ = dotenvy::dotenv();
 
         let cfg = Cfg::builder()
-            .set_default("server.bind", "0.0.0.0:8080")?
+            .set_default("server.bind", "0.0.0.0:18080")?
             .set_default("database.path", "/data/ledgapi.db")?
             .set_default("embed.cache_dir", "/data/.cache/fastembed")?
             .set_default("log.format", "pretty")?
             .set_default("log.level", "info")?
-            .set_default("auth.issuer", "http://localhost:8080")?
+            .set_default("auth.issuer", "http://localhost:18080")?
             .set_default("auth.cookie_secure", false)?
             .add_source(Environment::with_prefix("APP").separator("__").try_parsing(true))
             .build()?;

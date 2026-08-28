@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-08-28
+
+### Changed
+
+- **Default port changed from `8080` to `18080`.** Port 8080 collides with
+  too many other dev servers and reverse proxies already running on local
+  machines, which forced users to remap on every first install. The new
+  default sits in a less-crowded range while still being easy to remember.
+- The default port is now configurable independently for host and
+  container via the new `APP_HOST_PORT` and `APP_CONTAINER_PORT` env vars
+  read by `docker-compose.yaml`. The container-internal bind address
+  (`APP__SERVER__BIND`) and OAuth issuer (`APP__AUTH__ISSUER`) are
+  derived from them automatically, so users no longer have to keep four
+  values in sync when picking a non-default port.
+
+### Migration
+
+- **No code or schema changes.** v0.0.2 is a default-value change only;
+  the binary still accepts `APP__SERVER__BIND=0.0.0.0:8080` and
+  `APP__AUTH__ISSUER=http://localhost:8080` for anyone who wants to
+  keep the old behaviour. Existing volumes, tokens, and audit logs are
+  untouched.
+- If you previously set `APP__SERVER__BIND` or `APP__AUTH__ISSUER`
+  explicitly to a non-default value, no action is required.
+- If you relied on the default and need port 8080, set
+  `APP_HOST_PORT=8080 APP_CONTAINER_PORT=8080` in your environment
+  before `docker compose up` (and override `APP__AUTH__ISSUER` /
+  `APP__SERVER__BIND` if you run the binary directly).
+
 ## [0.0.1] - 2026-08-28
 
 The first public, open-source release of ledgapi. The codebase is published as a
@@ -63,5 +92,6 @@ self-hosted, agent-native API contract registry with MCP integration.
   (database schema, MCP tool signatures, configuration keys). Read the
   diff before upgrading.
 
-[Unreleased]: https://github.com/limaxs-dev/ledgapi/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/limaxs-dev/ledgapi/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/limaxs-dev/ledgapi/releases/tag/v0.0.2
 [0.0.1]: https://github.com/limaxs-dev/ledgapi/releases/tag/v0.0.1

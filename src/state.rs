@@ -90,7 +90,7 @@ impl AppState {
             auth: crate::config::AuthConfig {
                 initial_admin_username: None,
                 initial_admin_password: None,
-                issuer: "http://localhost:8080".to_owned(),
+                issuer: "http://localhost:18080".to_owned(),
                 session_ttl: Duration::from_hours(1),
                 access_token_ttl: Duration::from_hours(1),
                 refresh_token_ttl: Duration::from_hours(24),
