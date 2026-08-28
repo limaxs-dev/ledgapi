@@ -339,6 +339,9 @@ make ci   # fmt-check + clippy + test + architecture + deny + archaven
 
 The full design spec is in [`docs/superpowers/specs/2026-08-21-ledgapi-design.md`](./docs/superpowers/specs/2026-08-21-ledgapi-design.md).
 
+Release notes live in [CHANGELOG.md](./CHANGELOG.md). The current public
+release is **v0.0.1** — the first open-source launch.
+
 ## License
 
 Dual-licensed under either of:
