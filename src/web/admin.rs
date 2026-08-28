@@ -1,11 +1,13 @@
-use crate::domain::auth::{Principal, Role, UserCreate};
+use crate::core::id::Id;
+use crate::domain::auth::{Principal, Role, User, UserCreate};
 use crate::domain::errors::DomainError;
+use crate::domain::ports::Repos;
 use crate::infra::auth::{password, token};
 use crate::state::AppState;
 use crate::web::auth::{cookie_value, csrf_cookie_value, session_principal_for_cookie};
 use crate::web::templates::{AdminUserRow, AdminUsersTpl, AuditPageRow, AuditTpl};
 use askama::Template;
-use axum::extract::{Extension, Request};
+use axum::extract::{Extension, Path, Request};
 use axum::http::{StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use serde::Deserialize;
@@ -40,9 +42,11 @@ pub async fn users(Extension(state): Extension<AppState>, req: Request) -> Respo
         .unwrap_or_default();
     let (error, success) = match flash.as_str() {
         "created" => (None, Some("User created.")),
+        "updated" => (None, Some("User updated.")),
         "duplicate" => (Some("That username already exists."), None),
+        "notfound" => (Some("No such user."), None),
         "invalid" => (
-            Some("Could not create user. Check the username and password (minimum 12 characters)."),
+            Some("Could not apply that change. Check the role, active flag, or password (minimum 12 characters)."),
             None,
         ),
         _ => (None, None),
@@ -53,9 +57,11 @@ pub async fn users(Extension(state): Extension<AppState>, req: Request) -> Respo
         .unwrap_or_default()
         .into_iter()
         .map(|user| AdminUserRow {
+            id: user.id.to_string(),
             username: user.username,
             role: user.role.as_str().to_owned(),
             status: if user.active { "active" } else { "inactive" }.to_owned(),
+            is_self: user.id == principal.user_id,
         })
         .collect();
     let tpl = AdminUsersTpl { users, csrf: &csrf, error, success };
@@ -152,6 +158,130 @@ fn parse_form<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T, ()> {
         );
     }
     serde_json::from_value(serde_json::Value::Object(object)).map_err(|_| ())
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateUserForm {
+    role: String,
+    active: String,
+    csrf: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PasswordForm {
+    password: String,
+    csrf: String,
+}
+
+/// POST /admin/users/{id}/update — change role and active state.
+/// Flash values used on /admin/users redirect:
+///   - `updated`      : success
+///   - `invalid`      : role unknown or self-demote/self-deactivate attempt
+///   - `notfound`     : no such user
+pub async fn handle_update_user(
+    Extension(state): Extension<AppState>,
+    Path(id): Path<String>,
+    req: Request,
+) -> Response {
+    let Some(principal) =
+        session_principal_for_cookie(&state, cookie_value(&req, "ledgapi_session").as_deref())
+            .await
+            .ok()
+            .flatten()
+    else {
+        return (StatusCode::UNAUTHORIZED, "authentication required").into_response();
+    };
+    if !principal.role.can_manage_users() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some(csrf_cookie) = csrf_cookie_value(&req) else {
+        return (StatusCode::FORBIDDEN, "csrf validation failed").into_response();
+    };
+    let Ok(bytes) = axum::body::to_bytes(req.into_body(), 16 * 1024).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(form) = parse_form::<UpdateUserForm>(&bytes) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if !token::constant_time_eq(&token::sha256_hex(&csrf_cookie), &token::sha256_hex(&form.csrf)) {
+        return (StatusCode::FORBIDDEN, "csrf validation failed").into_response();
+    }
+    let invalid_redirect =
+        (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=invalid")]).into_response();
+    let Ok(role) = Role::parse(&form.role) else {
+        return invalid_redirect;
+    };
+    let active = match form.active.as_str() {
+        "true" | "1" | "on" => true,
+        "false" | "0" | "" => false,
+        _ => return invalid_redirect,
+    };
+    let Some(target_id) = Id::parse(&id) else {
+        return (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=notfound")])
+            .into_response();
+    };
+    let Some(target) = state.repos.users().find_by_id(target_id).await.ok().flatten() else {
+        return (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=notfound")])
+            .into_response();
+    };
+    let mut updated: User = target;
+    updated.role = role;
+    updated.active = active;
+    match crate::domain::use_cases::manage_user::update(&*state.repos, &principal, updated).await {
+        Ok(_) => (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=updated")])
+            .into_response(),
+        Err(DomainError::Forbidden { .. } | _) => invalid_redirect,
+    }
+}
+
+/// POST /admin/users/{id}/password — set a new initial password.
+pub async fn handle_reset_password(
+    Extension(state): Extension<AppState>,
+    Path(id): Path<String>,
+    req: Request,
+) -> Response {
+    let Some(principal) =
+        session_principal_for_cookie(&state, cookie_value(&req, "ledgapi_session").as_deref())
+            .await
+            .ok()
+            .flatten()
+    else {
+        return (StatusCode::UNAUTHORIZED, "authentication required").into_response();
+    };
+    if !principal.role.can_manage_users() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some(csrf_cookie) = csrf_cookie_value(&req) else {
+        return (StatusCode::FORBIDDEN, "csrf validation failed").into_response();
+    };
+    let Ok(bytes) = axum::body::to_bytes(req.into_body(), 16 * 1024).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(form) = parse_form::<PasswordForm>(&bytes) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if !token::constant_time_eq(&token::sha256_hex(&csrf_cookie), &token::sha256_hex(&form.csrf)) {
+        return (StatusCode::FORBIDDEN, "csrf validation failed").into_response();
+    }
+    let invalid_redirect =
+        (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=invalid")]).into_response();
+    let Some(target_id) = Id::parse(&id) else {
+        return (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=notfound")])
+            .into_response();
+    };
+    let Some(mut target) = state.repos.users().find_by_id(target_id).await.ok().flatten() else {
+        return (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=notfound")])
+            .into_response();
+    };
+    let Ok(password_hash) = password::hash_password(&form.password) else {
+        return invalid_redirect;
+    };
+    target.password_hash = password_hash;
+    match crate::domain::use_cases::manage_user::update(&*state.repos, &principal, target).await {
+        Ok(_) => (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/users?flash=updated")])
+            .into_response(),
+        Err(_) => invalid_redirect,
+    }
 }
 
 #[allow(dead_code)]

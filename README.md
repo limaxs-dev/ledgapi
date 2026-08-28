@@ -41,7 +41,7 @@ Other things that come along: per-contract audit history with the acting user, t
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                Docker container (ledgapi)                │
 │                                                          │

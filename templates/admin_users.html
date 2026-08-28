@@ -22,10 +22,45 @@
 </section>
 <table>
     <caption class="skip-link">Users</caption>
-    <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Status</th></tr></thead>
+    <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
     <tbody>
     {% for user in users %}
-        <tr><td>{{ user.username }}</td><td>{{ user.role }}</td><td>{{ user.status }}</td></tr>
+        <tr>
+            <td>{{ user.username }}{% if user.is_self %} (you){% endif %}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ user.status }}</td>
+            <td>
+                {% if user.is_self %}
+                    <span class="muted" aria-label="You cannot modify your own role or status">Self-managed</span>
+                {% else %}
+                <details>
+                    <summary>Edit</summary>
+                    <form method="post" action="/admin/users/{{ user.id }}/update">
+                        <input type="hidden" name="csrf" value="{{ csrf }}">
+                        <label>Role
+                            <select name="role">
+                                <option value="viewer" {% if user.role == "viewer" %}selected{% endif %}>Viewer</option>
+                                <option value="editor" {% if user.role == "editor" %}selected{% endif %}>Editor</option>
+                                <option value="super_admin" {% if user.role == "super_admin" %}selected{% endif %}>Super admin</option>
+                            </select>
+                        </label>
+                        <label>Active
+                            <input type="checkbox" name="active" value="true" {% if user.status == "active" %}checked{% endif %}>
+                        </label>
+                        <button type="submit">Save</button>
+                    </form>
+                </details>
+                <details>
+                    <summary>Reset password</summary>
+                    <form method="post" action="/admin/users/{{ user.id }}/password">
+                        <input type="hidden" name="csrf" value="{{ csrf }}">
+                        <label>New password (min 12 chars) <input type="password" name="password" required minlength="12"></label>
+                        <button type="submit">Reset</button>
+                    </form>
+                </details>
+                {% endif %}
+            </td>
+        </tr>
     {% endfor %}
     </tbody>
 </table>

@@ -39,6 +39,8 @@ pub fn router(state: AppState) -> Router {
         .route("/projects/{slug}/search", get(handlers::search))
         .route("/projects/{slug}/openapi.yml", get(openapi_export::yaml))
         .route("/admin/users", get(crate::web::admin::users).post(crate::web::admin::create_user))
+        .route("/admin/users/{id}/update", post(crate::web::admin::handle_update_user))
+        .route("/admin/users/{id}/password", post(crate::web::admin::handle_reset_password))
         .route("/admin/audit", get(crate::web::admin::audit))
         .route("/docs", get(crate::web::docs::home))
         .route("/docs/{*rest}", get(crate::web::docs::page))

@@ -176,9 +176,11 @@ pub struct AdminUsersTpl<'a> {
 
 #[derive(Serialize)]
 pub struct AdminUserRow {
+    pub id: String,
     pub username: String,
     pub role: String,
     pub status: String,
+    pub is_self: bool,
 }
 
 #[derive(Template, Serialize)]
